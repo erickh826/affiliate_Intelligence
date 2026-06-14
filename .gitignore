@@ -1,0 +1,19 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+.next/
+dist/
+coverage/
+
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyc
+
+.DS_Store
+
+# Gemini CLI Skills
+.claude/skills/*.skill

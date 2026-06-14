@@ -1,0 +1,33 @@
+{
+  "name": "affiliate-intelligence-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "clsx": "^2.1.1",
+    "gray-matter": "^4.0.3",
+    "lucide-react": "^1.17.0",
+    "next": "latest",
+    "next-mdx-remote": "^6.0.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.0.0",
+    "typescript": "latest",
+    "vitest": "^3.2.4"
+  }
+}

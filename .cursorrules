@@ -1,0 +1,61 @@
+# .cursorrules — Agent Entry for Cursor
+
+**Last updated:** 2026-05-12
+
+---
+
+## Project: Affiliate Intelligence (Programmatic SEO Content Machine)
+
+Automated content publishing system: AI-generated articles → Next.js website → AdSense + affiliate monetisation → video pipeline (Phase 4).
+
+---
+
+## Read These First
+
+1. `.ai-context/project.md` — Project overview
+2. `.ai-context/conventions.md` — Coding style & naming rules
+3. `.ai-context/architecture.md` — System diagram & data flow
+4. `.ai-context/data-schema.md` — Database schema (keywords table)
+
+## Authoritative Specs
+
+- `docs/SPEC-01-content-bot.md` — Python content pipeline
+- `docs/SPEC-02-web-system.md` — Next.js website
+- `docs/SPEC-03-monetisation.md` — AdSense + affiliate
+- `docs/SPEC-04-video-pipeline.md` — Video pipeline (Phase 4)
+
+SPEC files override any other documentation when conflicts exist.
+
+---
+
+## Rules
+
+- Python → `apps/bot/`, `black` + `ruff`, type hints required
+- TypeScript/React → `apps/web/`, Prettier + ESLint, strict mode
+- Never commit `.env` or API keys
+- No code comments unless asked
+- Commits: `type(scope): description` (e.g. `feat(s01): add keyword selector`)
+- Lint before commit: `ruff check apps/bot/` + `npx eslint apps/web/`
+- Test before commit: `pytest apps/bot/tests/` + `npm run test --prefix apps/web/`
+
+---
+
+## Data Flow
+
+```
+keywords.db → SPEC-01 Bot → MDX files → SPEC-02 Next.js → Vercel → Public Site
+                                                              ↓
+                                                   AdSense + Affiliate (SPEC-03)
+                                                              ↓
+                                                   GSC Feedback → keywords.db
+```
+
+---
+
+## Schema Change Protocol
+
+1. Update `.ai-context/data-schema.md`
+2. Update relevant SPEC file
+3. Write migration script in `data/migrations/`
+4. Implement code changes
+5. Update `architecture.md` if flow changed
