@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAllArticles } from '../../lib/mdx';
 import { getSiteName } from '../../lib/site';
 import ArticleCard from '../../components/ArticleCard';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 const PAGE_SIZE = 12;
 
@@ -23,6 +26,9 @@ export async function generateMetadata({
   return {
     title: `${label} | ${siteName}`,
     description: `Browse all ${label} articles.`,
+    alternates: {
+      canonical: `${SITE_URL}/${category}/`,
+    },
   };
 }
 
@@ -51,9 +57,9 @@ export default async function CategoryPage({
     <div className="layout-container py-12">
       <header className="mb-10">
         <nav className="text-sm text-gray-500 mb-4">
-          <a href="/" className="hover:text-accent transition-colors">
+          <Link href="/" className="hover:text-accent transition-colors">
             Home
-          </a>
+          </Link>
           <span className="mx-2">/</span>
           <span className="text-gray-300 capitalize">{label}</span>
         </nav>
@@ -63,32 +69,38 @@ export default async function CategoryPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {articles.map((article) => (
-          <ArticleCard key={article.frontmatter.slug} frontmatter={article.frontmatter} />
+          <ArticleCard
+            key={article.frontmatter.slug}
+            frontmatter={article.frontmatter}
+          />
         ))}
       </div>
 
       {totalPages > 1 && (
-        <nav className="mt-12 flex justify-center gap-4" aria-label="Pagination">
+        <nav
+          className="mt-12 flex justify-center gap-4"
+          aria-label="Pagination"
+        >
           {page > 1 && (
-            <a
+            <Link
               href={`/${category}?page=${page - 1}`}
               rel="prev"
               className="px-4 py-2 border border-gray-700 rounded hover:border-accent transition-colors text-sm"
             >
               Previous
-            </a>
+            </Link>
           )}
           <span className="px-4 py-2 text-sm text-gray-400">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
-            <a
+            <Link
               href={`/${category}?page=${page + 1}`}
               rel="next"
               className="px-4 py-2 border border-gray-700 rounded hover:border-accent transition-colors text-sm"
             >
               Next
-            </a>
+            </Link>
           )}
         </nav>
       )}

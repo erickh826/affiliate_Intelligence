@@ -1,17 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import path from 'path';
-import { getAffiliateMap, resolveCTAUrl, resolveCTAConfig } from '../lib/cta_injector';
+import {
+  getAffiliateMap,
+  resolveCTAUrl,
+  resolveCTAConfig,
+} from '../lib/cta_injector';
 import type { AffiliateMap } from '../lib/cta_injector';
 import { AFFILIATE_LINKS } from '../lib/affiliate-links';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
 const mapWithLinks: AffiliateMap = JSON.parse(
-  require('fs').readFileSync(path.join(FIXTURES, 'affiliate-map-with-links.json'), 'utf8'),
+  require('fs').readFileSync(
+    path.join(FIXTURES, 'affiliate-map-with-links.json'),
+    'utf8',
+  ),
 );
 
 const mapEmptyLinks: AffiliateMap = JSON.parse(
-  require('fs').readFileSync(path.join(FIXTURES, 'affiliate-map-empty-links.json'), 'utf8'),
+  require('fs').readFileSync(
+    path.join(FIXTURES, 'affiliate-map-empty-links.json'),
+    'utf8',
+  ),
 );
 
 const mapUnknownPartner: AffiliateMap = {

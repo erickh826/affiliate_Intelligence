@@ -14,7 +14,7 @@ export default function TableOfContents({ headings }: TableOfContentsProps) {
       </p>
       <ol className="space-y-2">
         {headings.map((h) => (
-          <li key={h.id} style={{ paddingLeft: h.level === 3 ? '0.75rem' : '0' }}>
+          <li key={h.id} className={h.level === 3 ? 'pl-3' : undefined}>
             <a
               href={`#${h.id}`}
               className="text-gray-400 hover:text-accent transition-colors leading-snug"

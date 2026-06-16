@@ -1,6 +1,16 @@
+import type { Metadata } from 'next';
 import { getAllArticles } from '../lib/mdx';
 import ArticleCard from '../components/ArticleCard';
 import Link from 'next/link';
+import { getSiteName } from '../lib/site';
+
+export const metadata: Metadata = {
+  title: getSiteName(),
+  description: 'In-depth comparisons and reviews of AI tools.',
+  alternates: {
+    canonical: '/',
+  },
+};
 
 export default async function HomePage() {
   const allArticles = await getAllArticles();
@@ -8,7 +18,9 @@ export default async function HomePage() {
     b.frontmatter.published_at.localeCompare(a.frontmatter.published_at),
   );
   const latest = sorted.slice(0, 6);
-  const categories = [...new Set(allArticles.map((a) => a.frontmatter.category))];
+  const categories = [
+    ...new Set(allArticles.map((a) => a.frontmatter.category)),
+  ];
 
   return (
     <div className="layout-container py-20">
@@ -22,7 +34,9 @@ export default async function HomePage() {
 
       {categories.length > 0 && (
         <section className="mb-16">
-          <h2 className="text-2xl font-bold mb-6 font-display">Browse by Category</h2>
+          <h2 className="text-2xl font-bold mb-6 font-display">
+            Browse by Category
+          </h2>
           <div className="flex flex-wrap gap-3">
             {categories.map((cat) => (
               <Link
@@ -39,7 +53,9 @@ export default async function HomePage() {
 
       {latest.length > 0 && (
         <section>
-          <h2 className="text-2xl font-bold mb-6 font-display">Latest Articles</h2>
+          <h2 className="text-2xl font-bold mb-6 font-display">
+            Latest Articles
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {latest.map((article) => (
               <ArticleCard

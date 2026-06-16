@@ -8,7 +8,7 @@ interface ArticleCardProps {
 export default function ArticleCard({ frontmatter }: ArticleCardProps) {
   const { title, description, published_at, category, slug } = frontmatter;
   return (
-    <article className="bg-surface border border-gray-800 rounded-lg p-6 hover:border-accent transition-colors">
+    <article className="content-auto bg-surface border border-gray-800 rounded-lg p-6 hover:border-accent transition-colors">
       <Link href={`/${category}/${slug}`} className="block">
         <div className="mb-3">
           <span className="text-xs font-medium text-accent uppercase tracking-wide border border-accent/30 rounded px-2 py-0.5">

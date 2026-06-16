@@ -1,6 +1,9 @@
 import type { FAQData, Frontmatter } from './mdx';
 
-export function buildArticleSchema(frontmatter: Frontmatter, siteUrl: string): object {
+export function buildArticleSchema(
+  frontmatter: Frontmatter,
+  siteUrl: string,
+): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',

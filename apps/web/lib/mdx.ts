@@ -50,14 +50,20 @@ export function getHeadings(content: string): Heading[] {
     if (h2) {
       const text = h2[1].trim();
       headings.push({
-        id: text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        id: text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, ''),
         text,
         level: 2,
       });
     } else if (h3) {
       const text = h3[1].trim();
       headings.push({
-        id: text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        id: text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, ''),
         text,
         level: 3,
       });

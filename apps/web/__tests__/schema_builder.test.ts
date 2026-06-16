@@ -31,41 +31,70 @@ const faqData: FAQData = {
 
 describe('buildArticleSchema', () => {
   it('returns @type Article', () => {
-    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<string, unknown>;
+    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<
+      string,
+      unknown
+    >;
     expect(schema['@type']).toBe('Article');
   });
 
   it('sets headline and description from frontmatter', () => {
-    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<string, unknown>;
+    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<
+      string,
+      unknown
+    >;
     expect(schema.headline).toBe(frontmatter.title);
     expect(schema.description).toBe(frontmatter.description);
   });
 
   it('URL includes trailing slash', () => {
-    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<string, unknown>;
+    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<
+      string,
+      unknown
+    >;
     expect(schema.url as string).toMatch(/\/$/);
   });
 
   it('URL is correctly composed', () => {
-    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<string, unknown>;
-    expect(schema.url).toBe(`${SITE_URL}/ai-writing/best-ai-writing-tools-2026/`);
+    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<
+      string,
+      unknown
+    >;
+    expect(schema.url).toBe(
+      `${SITE_URL}/ai-writing/best-ai-writing-tools-2026/`,
+    );
   });
 });
 
 describe('buildBreadcrumbSchema', () => {
   it('returns @type BreadcrumbList', () => {
-    const schema = buildBreadcrumbSchema('ai-writing', 'best-ai-writing-tools-2026', 'Title', SITE_URL) as Record<string, unknown>;
+    const schema = buildBreadcrumbSchema(
+      'ai-writing',
+      'best-ai-writing-tools-2026',
+      'Title',
+      SITE_URL,
+    ) as Record<string, unknown>;
     expect(schema['@type']).toBe('BreadcrumbList');
   });
 
   it('has three list items', () => {
-    const schema = buildBreadcrumbSchema('ai-writing', 'best-ai-writing-tools-2026', 'Title', SITE_URL) as Record<string, unknown>;
+    const schema = buildBreadcrumbSchema(
+      'ai-writing',
+      'best-ai-writing-tools-2026',
+      'Title',
+      SITE_URL,
+    ) as Record<string, unknown>;
     const items = schema.itemListElement as unknown[];
     expect(items).toHaveLength(3);
   });
 
   it('all item URLs end with trailing slash', () => {
-    const schema = buildBreadcrumbSchema('ai-writing', 'best-ai-writing-tools-2026', 'Title', SITE_URL) as Record<string, unknown>;
+    const schema = buildBreadcrumbSchema(
+      'ai-writing',
+      'best-ai-writing-tools-2026',
+      'Title',
+      SITE_URL,
+    ) as Record<string, unknown>;
     const items = schema.itemListElement as Record<string, string>[];
     for (const item of items) {
       expect(item.item).toMatch(/\/$/);
@@ -73,9 +102,16 @@ describe('buildBreadcrumbSchema', () => {
   });
 
   it('article item URL is correctly composed', () => {
-    const schema = buildBreadcrumbSchema('ai-writing', 'best-ai-writing-tools-2026', 'Title', SITE_URL) as Record<string, unknown>;
+    const schema = buildBreadcrumbSchema(
+      'ai-writing',
+      'best-ai-writing-tools-2026',
+      'Title',
+      SITE_URL,
+    ) as Record<string, unknown>;
     const items = schema.itemListElement as Record<string, string>[];
-    expect(items[2].item).toBe(`${SITE_URL}/ai-writing/best-ai-writing-tools-2026/`);
+    expect(items[2].item).toBe(
+      `${SITE_URL}/ai-writing/best-ai-writing-tools-2026/`,
+    );
   });
 });
 
