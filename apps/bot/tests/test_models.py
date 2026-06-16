@@ -23,13 +23,50 @@ _ALL_CONTRACTS = (
 )
 
 _REQUIRED_KEYS: dict[type, set[str]] = {
-    ResearchContext: {"keyword", "intent", "competitors_scraped", "facts", "tools_mentioned", "faq_seeds"},
+    ResearchContext: {
+        "keyword",
+        "intent",
+        "competitors_scraped",
+        "facts",
+        "tools_mentioned",
+        "faq_seeds",
+    },
     GeneratedSection: {"h2", "h3s", "content", "word_count"},
-    GenerationContext: {"keyword", "slug", "category", "intent", "h1", "meta_description", "sections", "faqs", "affiliate_partner", "outline"},
-    Frontmatter: {"title", "description", "slug", "category", "intent", "published_at", "last_reviewed", "author", "affiliate_partner", "schema_type"},
+    GenerationContext: {
+        "keyword",
+        "slug",
+        "category",
+        "intent",
+        "h1",
+        "meta_description",
+        "sections",
+        "faqs",
+        "affiliate_partner",
+        "outline",
+    },
+    Frontmatter: {
+        "title",
+        "description",
+        "slug",
+        "category",
+        "intent",
+        "published_at",
+        "last_reviewed",
+        "author",
+        "affiliate_partner",
+        "schema_type",
+    },
     FAQItem: {"question", "answer"},
     AffiliateMap: {"slug", "primary_partner", "cta_variant", "links"},
-    ArticleArtifact: {"slug", "category", "frontmatter", "mdx_body", "faq_json", "affiliate_map", "qa_result"},
+    ArticleArtifact: {
+        "slug",
+        "category",
+        "frontmatter",
+        "mdx_body",
+        "faq_json",
+        "affiliate_map",
+        "qa_result",
+    },
 }
 
 
@@ -48,10 +85,14 @@ class TestContractKeys:
         assert _REQUIRED_KEYS[ResearchContext].issubset(ResearchContext.__annotations__)
 
     def test_generated_section_keys(self) -> None:
-        assert _REQUIRED_KEYS[GeneratedSection].issubset(GeneratedSection.__annotations__)
+        assert _REQUIRED_KEYS[GeneratedSection].issubset(
+            GeneratedSection.__annotations__
+        )
 
     def test_generation_context_keys(self) -> None:
-        assert _REQUIRED_KEYS[GenerationContext].issubset(GenerationContext.__annotations__)
+        assert _REQUIRED_KEYS[GenerationContext].issubset(
+            GenerationContext.__annotations__
+        )
 
     def test_frontmatter_keys(self) -> None:
         assert _REQUIRED_KEYS[Frontmatter].issubset(Frontmatter.__annotations__)
@@ -71,9 +112,18 @@ class TestResearchContext:
         ctx: ResearchContext = {
             "keyword": "best ai writing tools",
             "intent": "comparison",
-            "competitors_scraped": [{"url": "https://example.com", "title": "Example", "headings": [], "body_summary": ""}],
+            "competitors_scraped": [
+                {
+                    "url": "https://example.com",
+                    "title": "Example",
+                    "headings": [],
+                    "body_summary": "",
+                }
+            ],
             "facts": [{"claim": "Jasper costs $49/month", "source": "jasper.ai"}],
-            "tools_mentioned": [{"name": "Jasper", "pricing": "$49/mo", "pros": [], "cons": []}],
+            "tools_mentioned": [
+                {"name": "Jasper", "pricing": "$49/mo", "pros": [], "cons": []}
+            ],
             "faq_seeds": ["What is the best AI writing tool?"],
         }
         assert ctx["keyword"] == "best ai writing tools"
@@ -134,7 +184,12 @@ class TestGenerationContext:
             "sections": [section],
             "faqs": ["What is the best AI writing tool?"],
             "affiliate_partner": "jasper",
-            "outline": {"h1": "Best AI Writing Tools", "sections": [], "faqs": [], "meta_description": ""},
+            "outline": {
+                "h1": "Best AI Writing Tools",
+                "sections": [],
+                "faqs": [],
+                "meta_description": "",
+            },
         }
         assert ctx["slug"] == "best-ai-writing-tools"
         assert ctx["affiliate_partner"] == "jasper"
@@ -173,14 +228,27 @@ class TestFrontmatter:
         assert fm["published_at"] == "2026-05-18"
 
     def test_spec_01_fields_present(self) -> None:
-        spec_fields = {"title", "description", "slug", "category", "intent",
-                       "published_at", "last_reviewed", "author", "affiliate_partner", "schema_type"}
+        spec_fields = {
+            "title",
+            "description",
+            "slug",
+            "category",
+            "intent",
+            "published_at",
+            "last_reviewed",
+            "author",
+            "affiliate_partner",
+            "schema_type",
+        }
         assert spec_fields == set(Frontmatter.__annotations__.keys())
 
 
 class TestFAQItem:
     def test_minimal_valid_dict(self) -> None:
-        item: FAQItem = {"question": "What is Jasper AI?", "answer": "Jasper AI is an AI writing tool."}
+        item: FAQItem = {
+            "question": "What is Jasper AI?",
+            "answer": "Jasper AI is an AI writing tool.",
+        }
         assert item["question"] == "What is Jasper AI?"
 
     def test_empty_answer_valid(self) -> None:
@@ -235,7 +303,12 @@ class TestArticleArtifact:
     def _make_artifact(self, qa_overall: str = "PASS") -> ArticleArtifact:
         fm = self._make_frontmatter()
         faq: list[FAQItem] = [{"question": "Q?", "answer": "A."}]
-        amap: AffiliateMap = {"slug": "best-ai-tools", "primary_partner": "jasper", "cta_variant": "A", "links": {}}
+        amap: AffiliateMap = {
+            "slug": "best-ai-tools",
+            "primary_partner": "jasper",
+            "cta_variant": "A",
+            "links": {},
+        }
         qa = QAResult(overall=qa_overall, checks=[], article_updates={})  # type: ignore[arg-type]
         return {
             "slug": "best-ai-tools",
@@ -274,15 +347,27 @@ class TestArticleArtifact:
 
     def test_qa_result_with_checks(self) -> None:
         fm = self._make_frontmatter()
-        check = CheckResult(name="word_count", result="FAIL", message="500 words <= 1,200", action="regenerate")
-        qa = QAResult(overall="FAIL", checks=[check], article_updates={"status": "failed"})
+        check = CheckResult(
+            name="word_count",
+            result="FAIL",
+            message="500 words <= 1,200",
+            action="regenerate",
+        )
+        qa = QAResult(
+            overall="FAIL", checks=[check], article_updates={"status": "failed"}
+        )
         artifact: ArticleArtifact = {
             "slug": "test",
             "category": "ai-writing",
             "frontmatter": fm,
             "mdx_body": "# Test",
             "faq_json": [],
-            "affiliate_map": {"slug": "test", "primary_partner": None, "cta_variant": "A", "links": {}},
+            "affiliate_map": {
+                "slug": "test",
+                "primary_partner": None,
+                "cta_variant": "A",
+                "links": {},
+            },
             "qa_result": qa,
         }
         assert artifact["qa_result"].checks[0].name == "word_count"

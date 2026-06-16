@@ -55,10 +55,24 @@ class TestInitDb:
         conn = init_db(tmp_db)
         cols = {r[1] for r in conn.execute("PRAGMA table_info(keywords)").fetchall()}
         required = {
-            "id", "keyword", "category", "intent", "monthly_volume", "difficulty",
-            "status", "slug", "published_at", "gsc_impressions", "gsc_clicks",
-            "gsc_ctr", "gsc_position", "affiliate_partner", "cta_variant",
-            "revenue_mtd", "youtube_url", "video_status",
+            "id",
+            "keyword",
+            "category",
+            "intent",
+            "monthly_volume",
+            "difficulty",
+            "status",
+            "slug",
+            "published_at",
+            "gsc_impressions",
+            "gsc_clicks",
+            "gsc_ctr",
+            "gsc_position",
+            "affiliate_partner",
+            "cta_variant",
+            "revenue_mtd",
+            "youtube_url",
+            "video_status",
         }
         assert required == cols
         conn.close()
@@ -164,4 +178,10 @@ class TestSeed:
             for r in conn.execute("SELECT DISTINCT category FROM keywords").fetchall()
         }
         conn.close()
-        assert cats == {"ai-writing", "ai-image", "ai-video", "ai-code", "ai-productivity"}
+        assert cats == {
+            "ai-writing",
+            "ai-image",
+            "ai-video",
+            "ai-code",
+            "ai-productivity",
+        }

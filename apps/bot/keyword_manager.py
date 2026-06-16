@@ -8,7 +8,9 @@ from db_setup import DB_PATH, init_db
 
 _VOLUME_MIN = 100
 _DIFFICULTY_MAX = 45
-_VALID_STATUSES = frozenset({"pending", "published", "needs_rewrite", "failed", "generating"})
+_VALID_STATUSES = frozenset(
+    {"pending", "published", "needs_rewrite", "failed", "generating"}
+)
 
 
 class KeywordManager:
@@ -34,7 +36,9 @@ class KeywordManager:
 
         filter_clause = ""
         if not force:
-            filter_clause = f"AND monthly_volume > {_VOLUME_MIN} AND difficulty < {_DIFFICULTY_MAX}"
+            filter_clause = (
+                f"AND monthly_volume > {_VOLUME_MIN} AND difficulty < {_DIFFICULTY_MAX}"
+            )
 
         # Atomic select-and-lock
         with self._conn:

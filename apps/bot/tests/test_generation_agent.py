@@ -27,8 +27,18 @@ _MOCK_RESEARCH: dict[str, Any] = {
         {"claim": "Writesonic starts at $19/month", "source": "writesonic.com"},
     ],
     "tools_mentioned": [
-        {"name": "Jasper", "pricing": "$49/mo", "pros": ["fast"], "cons": ["expensive"]},
-        {"name": "Writesonic", "pricing": "$19/mo", "pros": ["cheap"], "cons": ["limited"]},
+        {
+            "name": "Jasper",
+            "pricing": "$49/mo",
+            "pros": ["fast"],
+            "cons": ["expensive"],
+        },
+        {
+            "name": "Writesonic",
+            "pricing": "$19/mo",
+            "pros": ["cheap"],
+            "cons": ["limited"],
+        },
     ],
     "faq_seeds": ["What is the best AI writing tool?"],
     "competitors_scraped": [],
@@ -92,18 +102,24 @@ class TestSectionPrompt:
 
     def test_section_prompt_contains_affiliate_cta(self) -> None:
         p = _section_prompt("H2", ["H3"], [], "comparison", affiliate_partner="jasper")
-        assert 'AFFILIATE CTA: You MUST include exactly one <AffiliateCTA partner="jasper" />' in p
+        assert (
+            'AFFILIATE CTA: You MUST include exactly one <AffiliateCTA partner="jasper" />'
+            in p
+        )
 
     def test_section_prompt_contains_internal_links_instruction(self) -> None:
         p = _section_prompt("H2", ["H3"], [], "comparison")
         assert "INTERNAL LINKING: Use placeholders like [Link Text]({{LINK_SLUG}})" in p
 
     def test_section_prompt_contains_style_guide(self) -> None:
-        p = _section_prompt("H2", ["H3"], [], "comparison", style_guide="Professional and authoritative")
+        p = _section_prompt(
+            "H2", ["H3"], [], "comparison", style_guide="Professional and authoritative"
+        )
         assert "Tone/Style: Professional and authoritative" in p
 
     def test_system_section_contains_mdx_safety(self) -> None:
         from generation_agent import _SYSTEM_SECTION
+
         assert "MDX SAFETY RULES" in _SYSTEM_SECTION
         assert "ONLY use approved MDX components" in _SYSTEM_SECTION
         assert "PROHIBIT raw HTML tags" in _SYSTEM_SECTION
@@ -117,48 +133,56 @@ class TestValidateOutline:
 
     def test_missing_h1_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {k: v for k, v in _MOCK_OUTLINE.items() if k != "h1"}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_missing_meta_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {k: v for k, v in _MOCK_OUTLINE.items() if k != "meta_description"}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_missing_sections_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {k: v for k, v in _MOCK_OUTLINE.items() if k != "sections"}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_missing_faqs_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {k: v for k, v in _MOCK_OUTLINE.items() if k != "faqs"}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_too_few_sections_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {**_MOCK_OUTLINE, "sections": _MOCK_OUTLINE["sections"][:3]}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_too_many_sections_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {**_MOCK_OUTLINE, "sections": _MOCK_OUTLINE["sections"] * 2}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_too_few_faqs_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {**_MOCK_OUTLINE, "faqs": _MOCK_OUTLINE["faqs"][:3]}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
 
     def test_meta_over_165_raises(self) -> None:
         from generation_agent import ValidationError
+
         bad = {**_MOCK_OUTLINE, "meta_description": "x" * 200}
         with pytest.raises(ValidationError, match="Outline validation failed"):
             _validate_outline(bad)
@@ -216,21 +240,23 @@ class TestDryRunSection:
 class TestGenerateOutlineDryRun:
     def test_returns_valid_outline(self) -> None:
         outline = asyncio.run(
-            generate_outline("best ai tools", "comparison", _MOCK_RESEARCH, dry_run=True)
+            generate_outline(
+                "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=True
+            )
         )
         _validate_outline(outline)
 
     def test_does_not_call_openai(self) -> None:
         with patch("generation_agent._call_outline") as mock:
             asyncio.run(
-                generate_outline("best ai tools", "comparison", _MOCK_RESEARCH, dry_run=True)
+                generate_outline(
+                    "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=True
+                )
             )
         mock.assert_not_called()
 
     def test_comparison_outline_has_columns(self) -> None:
-        outline = asyncio.run(
-            generate_outline("tools", "comparison", {}, dry_run=True)
-        )
+        outline = asyncio.run(generate_outline("tools", "comparison", {}, dry_run=True))
         assert "comparison_columns" in outline
 
 
@@ -243,12 +269,15 @@ class TestGenerateOutlineLive:
             return_value=expected,
         ):
             result = asyncio.run(
-                generate_outline("best ai tools", "comparison", _MOCK_RESEARCH, dry_run=False)
+                generate_outline(
+                    "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=False
+                )
             )
         assert result["h1"] == expected["h1"]
 
     def test_validates_outline_from_api(self) -> None:
         from generation_agent import ValidationError
+
         bad_outline: dict[str, Any] = {"h1": "title"}
         with patch(
             "generation_agent._call_outline",
@@ -256,9 +285,7 @@ class TestGenerateOutlineLive:
             return_value=bad_outline,
         ):
             with pytest.raises(ValidationError):
-                asyncio.run(
-                    generate_outline("kw", "comparison", {}, dry_run=False)
-                )
+                asyncio.run(generate_outline("kw", "comparison", {}, dry_run=False))
 
 
 class TestWriteSectionsDryRun:
@@ -285,14 +312,18 @@ class TestWriteSectionsDryRun:
     def test_does_not_call_anthropic(self) -> None:
         with patch("generation_agent._call_anthropic_section") as mock:
             asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=True)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=True
+                )
             )
         mock.assert_not_called()
 
     def test_does_not_call_openai(self) -> None:
         with patch("generation_agent._call_openai_section") as mock:
             asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=True)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=True
+                )
             )
         mock.assert_not_called()
 
@@ -310,15 +341,20 @@ class TestWriteSectionsLive:
             active -= 1
             return "content with $49/month pricing"
 
-        with patch("generation_agent._call_anthropic_section", side_effect=mock_anthropic):
+        with patch(
+            "generation_agent._call_anthropic_section", side_effect=mock_anthropic
+        ):
             asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False
+                )
             )
 
         assert max_active <= _MAX_CONCURRENCY
 
     def test_falls_back_to_openai_when_anthropic_fails(self) -> None:
         from generation_agent import LLMAPIError
+
         async def fail(*a: Any, **kw: Any) -> str:
             raise LLMAPIError("anthropic down")
 
@@ -330,7 +366,9 @@ class TestWriteSectionsLive:
             patch("generation_agent._call_openai_section", side_effect=succeed),
         ):
             sections = asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False
+                )
             )
             assert sections[0]["content"] == "openai fallback content $29/month"
 
@@ -341,11 +379,16 @@ class TestWriteSectionsLive:
             return "anthropic content $49/month"
 
         with (
-            patch("generation_agent._call_anthropic_section", side_effect=succeed_anthropic),
+            patch(
+                "generation_agent._call_anthropic_section",
+                side_effect=succeed_anthropic,
+            ),
             patch("generation_agent._call_openai_section") as openai_mock,
         ):
             asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False
+                )
             )
 
         openai_mock.assert_not_called()
@@ -354,9 +397,13 @@ class TestWriteSectionsLive:
         async def mock_content(*a: Any, **kw: Any) -> str:
             return "word " * 350
 
-        with patch("generation_agent._call_anthropic_section", side_effect=mock_content):
+        with patch(
+            "generation_agent._call_anthropic_section", side_effect=mock_content
+        ):
             sections = asyncio.run(
-                write_sections(_MOCK_OUTLINE, _MOCK_RESEARCH, "informational", dry_run=False)
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "informational", dry_run=False
+                )
             )
 
         assert all(s["word_count"] > 0 for s in sections)

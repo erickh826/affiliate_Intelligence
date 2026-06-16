@@ -15,13 +15,53 @@ _INSERT = (
 
 _ROWS = [
     # slug                        vol   diff  status
-    ("high priority pending",    "ai-writing", "comparison", 5000, 10, "pending",       "high-priority-pending"),
-    ("low priority pending",     "ai-writing", "comparison",  200, 40, "pending",       "low-priority-pending"),
-    ("needs rewrite kw",         "ai-writing", "comparison", 3000, 20, "needs_rewrite", "needs-rewrite-kw"),
-    ("below volume threshold",   "ai-writing", "comparison",   50, 10, "pending",       "below-volume"),
-    ("above diff threshold",     "ai-writing", "comparison", 5000, 50, "pending",       "above-diff"),
-    ("published kw",             "ai-writing", "comparison", 5000, 10, "published",     "published-kw"),
-    ("failed kw",                "ai-writing", "comparison", 5000, 10, "failed",        "failed-kw"),
+    (
+        "high priority pending",
+        "ai-writing",
+        "comparison",
+        5000,
+        10,
+        "pending",
+        "high-priority-pending",
+    ),
+    (
+        "low priority pending",
+        "ai-writing",
+        "comparison",
+        200,
+        40,
+        "pending",
+        "low-priority-pending",
+    ),
+    (
+        "needs rewrite kw",
+        "ai-writing",
+        "comparison",
+        3000,
+        20,
+        "needs_rewrite",
+        "needs-rewrite-kw",
+    ),
+    (
+        "below volume threshold",
+        "ai-writing",
+        "comparison",
+        50,
+        10,
+        "pending",
+        "below-volume",
+    ),
+    (
+        "above diff threshold",
+        "ai-writing",
+        "comparison",
+        5000,
+        50,
+        "pending",
+        "above-diff",
+    ),
+    ("published kw", "ai-writing", "comparison", 5000, 10, "published", "published-kw"),
+    ("failed kw", "ai-writing", "comparison", 5000, 10, "failed", "failed-kw"),
 ]
 
 
@@ -35,7 +75,9 @@ def mgr(tmp_path: Path) -> Generator[KeywordManager, None, None]:
 
 
 class TestSelectKeywords:
-    def test_normal_mode_includes_pending_and_rewrite(self, mgr: KeywordManager) -> None:
+    def test_normal_mode_includes_pending_and_rewrite(
+        self, mgr: KeywordManager
+    ) -> None:
         results = mgr.select_keywords(10)
         # Verify initial selection content, but note status will have changed to 'generating'
         # The returned dicts contain the status AT THE TIME OF SELECT
@@ -133,8 +175,17 @@ class TestGetKeyword:
     def test_returned_dict_has_all_columns(self, mgr: KeywordManager) -> None:
         result = mgr.get_keyword("high-priority-pending")
         assert result is not None
-        for col in ("id", "keyword", "category", "intent", "monthly_volume",
-                    "difficulty", "status", "slug", "published_at"):
+        for col in (
+            "id",
+            "keyword",
+            "category",
+            "intent",
+            "monthly_volume",
+            "difficulty",
+            "status",
+            "slug",
+            "published_at",
+        ):
             assert col in result
 
 
@@ -151,7 +202,9 @@ class TestUpdateStatus:
         assert row is not None
         assert row["published_at"] is not None
 
-    def test_published_at_not_overwritten_on_republish(self, mgr: KeywordManager) -> None:
+    def test_published_at_not_overwritten_on_republish(
+        self, mgr: KeywordManager
+    ) -> None:
         mgr.update_status("high-priority-pending", "published")
         first_date = mgr.get_keyword("high-priority-pending")["published_at"]  # type: ignore[index]
         mgr.update_status("high-priority-pending", "published")

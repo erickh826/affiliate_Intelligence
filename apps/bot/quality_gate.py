@@ -326,8 +326,10 @@ def _readability_score(text: str) -> float:
     sentences = [s for s in _SENTENCE_RE.split(text) if s.strip()]
     sentence_count = max(len(sentences), 1)
     syllables = sum(_count_syllables(word) for word in words)
-    return 206.835 - 1.015 * (len(words) / sentence_count) - 84.6 * (
-        syllables / len(words)
+    return (
+        206.835
+        - 1.015 * (len(words) / sentence_count)
+        - 84.6 * (syllables / len(words))
     )
 
 

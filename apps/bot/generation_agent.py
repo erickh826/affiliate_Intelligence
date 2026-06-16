@@ -90,7 +90,7 @@ def _section_prompt(
     cta = ""
     if affiliate_partner:
         cta = (
-            f"AFFILIATE CTA: You MUST include exactly one <AffiliateCTA partner=\"{affiliate_partner}\" /> "
+            f'AFFILIATE CTA: You MUST include exactly one <AffiliateCTA partner="{affiliate_partner}" /> '
             "at a natural breaking point in this section."
         )
 
@@ -132,13 +132,34 @@ def _dry_run_outline(keyword: str, intent: str) -> dict[str, Any]:
         meta += " Read our comprehensive guide to stay ahead of the curve."
     meta = meta[:165]
     sections = [
-        {"h2": f"What Is {title}?", "h3s": ["Definition", "How It Works", "Key Features"]},
-        {"h2": "Top Tools Compared", "h3s": ["Tool Overview", "Pricing", "Pros and Cons"]},
-        {"h2": "Best For Beginners", "h3s": ["Getting Started", "Free Options", "Learning Curve"]},
-        {"h2": "Best For Professionals", "h3s": ["Advanced Features", "Enterprise Plans", "Integrations"]},
-        {"h2": "Pricing Breakdown", "h3s": ["Free Plans", "Paid Tiers", "Value Assessment"]},
-        {"h2": "How to Choose", "h3s": ["Key Criteria", "Use Case Matching", "Our Recommendation"]},
-        {"h2": "Frequently Asked Questions", "h3s": ["Common Questions", "Quick Answers"]},
+        {
+            "h2": f"What Is {title}?",
+            "h3s": ["Definition", "How It Works", "Key Features"],
+        },
+        {
+            "h2": "Top Tools Compared",
+            "h3s": ["Tool Overview", "Pricing", "Pros and Cons"],
+        },
+        {
+            "h2": "Best For Beginners",
+            "h3s": ["Getting Started", "Free Options", "Learning Curve"],
+        },
+        {
+            "h2": "Best For Professionals",
+            "h3s": ["Advanced Features", "Enterprise Plans", "Integrations"],
+        },
+        {
+            "h2": "Pricing Breakdown",
+            "h3s": ["Free Plans", "Paid Tiers", "Value Assessment"],
+        },
+        {
+            "h2": "How to Choose",
+            "h3s": ["Key Criteria", "Use Case Matching", "Our Recommendation"],
+        },
+        {
+            "h2": "Frequently Asked Questions",
+            "h3s": ["Common Questions", "Quick Answers"],
+        },
     ]
     faqs = [
         f"What is the best {keyword}?",
@@ -164,12 +185,20 @@ def _dry_run_section(h2: str, h3s: list[str]) -> dict[str, Any]:
         "Pricing for leading tools starts at $0 for free tiers and $49/month for professional plans. "
         "Key considerations include feature depth, API access, and integration support. "
         + " ".join(
-            f"Regarding {h}: compare tools on fit for your workflow and budget." for h in h3s
+            f"Regarding {h}: compare tools on fit for your workflow and budget."
+            for h in h3s
         )
     )
-    padding = " ".join(["Evaluate each option carefully before committing to a subscription."] * 25)
+    padding = " ".join(
+        ["Evaluate each option carefully before committing to a subscription."] * 25
+    )
     content = " ".join(f"{base} {padding}".split()[:320])
-    return {"h2": h2, "h3s": h3s, "content": content, "word_count": len(content.split())}
+    return {
+        "h2": h2,
+        "h3s": h3s,
+        "content": content,
+        "word_count": len(content.split()),
+    }
 
 
 async def _call_outline(
@@ -184,7 +213,10 @@ async def _call_outline(
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": _SYSTEM_OUTLINE},
-                {"role": "user", "content": _outline_prompt(keyword, intent, research_summary)},
+                {
+                    "role": "user",
+                    "content": _outline_prompt(keyword, intent, research_summary),
+                },
             ],
             temperature=0.3,
         )
@@ -275,7 +307,12 @@ async def _write_one_section(
             content = await _call_openai_section(
                 h2, h3s, facts, intent, style_guide, affiliate_partner
             )
-        return {"h2": h2, "h3s": h3s, "content": content, "word_count": len(content.split())}
+        return {
+            "h2": h2,
+            "h3s": h3s,
+            "content": content,
+            "word_count": len(content.split()),
+        }
 
 
 async def generate_outline(
