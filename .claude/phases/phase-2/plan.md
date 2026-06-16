@@ -1,6 +1,6 @@
 # Phase 2 Plan — Web Publishing System (SPEC-02)
 
-**Status:** IN PROGRESS (M1 done; M2 ready)  
+**Status:** IN PROGRESS (M1 and M2 completed; M3 needs review)  
 **Spec:** `docs/SPEC-02-web-system.md`  
 **Timeline:** Weeks 2–4  
 **Depends on:** Phase 1 (MDX output from content bot)

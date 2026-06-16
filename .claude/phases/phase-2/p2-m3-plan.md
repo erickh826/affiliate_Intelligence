@@ -1,10 +1,10 @@
 # Phase 2 Milestone 3 — Plan
 
-**Status:** PLANNED (start after M2 COMPLETED)  
+**Status:** NEEDS REVIEW  
 **Spec:** `docs/SPEC-02-web-system.md` §5–§9  
 **Depends on:** M2 — homepage, category index, CTA, schema, shared components landed
 
-**Executor prompt:** *TBD: `p2-m3-executor-prompt.md` — write when M2 review passes*  
+**Executor prompt:** [p2-m3-executor-prompt.md](./p2-m3-executor-prompt.md)  
 **Review:** *TBD: `p2-m3-review-prompt.md`*
 
 ---

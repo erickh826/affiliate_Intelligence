@@ -13,8 +13,8 @@ Phase 2 is split into **three milestones** so Claude (or another agent) can impl
 | Milestone | Tasks | Goal | Prompts |
 |-----------|-------|------|---------|
 | **M1** | T2.1 (partial), T2.3, T2.4 | Render bot MDX at `/[category]/[slug]` | ✅ COMPLETED |
-| **M2** | T2.2 (full), T2.5, T2.6, T2.7, T2.8 | Homepage, category index, CTA, schema, components | [plan](./p2-m2-plan.md) · [executor](./p2-m2-executor-prompt.md) · [review](./p2-m2-review-prompt.md) |
-| **M3** | T2.9, T2.10, T2.11, T2.12 (full) | E-E-A-T pages, SEO, GSC stub, full test suite | [plan](./p2-m3-plan.md) · *executor TBD after M2 review* |
+| **M2** | T2.2 (full), T2.5, T2.6, T2.7, T2.8 | Homepage, category index, CTA, schema, components | ✅ COMPLETED |
+| **M3** | T2.9, T2.10, T2.11, T2.12 (full) | E-E-A-T pages, SEO, GSC stub, full test suite | ⚠ NEEDS REVIEW |
 
 ---
 

@@ -1,9 +1,11 @@
 # Phase 3 Plan — Monetisation System (SPEC-03)
 
 **Status:** DRAFT
-**Spec:** `docs/SPEC-03-monetisation.md`
+**Spec:** `docs/SPEC-03-monetisation.md`  
 **Timeline:** Weeks 4–8
-**Depends on:** Phase 1 (articles published), Phase 2 (site live with E-E-A-T pages)
+**Depends on:** Phase 1 (articles published), Phase 2 M3 + deployment (site live at custom domain, E-E-A-T pages)
+
+**Account applications:** [.claude/account-applications-checklist.md](../../account-applications-checklist.md)
 
 **Contract dependency:** Phase 3 must treat Phase 1 `ArticleArtifact.affiliate_map`, `Frontmatter.affiliate_partner`, and `keywords.affiliate_partner` as the monetisation handoff contract. Affiliate map JSON fields should stay compatible with the `P1-T6` writer output and Phase 2 CTA injector.
 
