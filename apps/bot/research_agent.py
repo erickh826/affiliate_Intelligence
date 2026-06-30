@@ -110,7 +110,7 @@ def query_perplexity(
     http = client or UrlLibHTTPClient()
     headers = {"Authorization": f"Bearer {key}"}
     payload = {
-        "model": "llama-3.1-sonar-large-128k-online",
+        "model": "sonar-deep-research",
         "messages": [
             {"role": "system", "content": "Extract factual data only. No opinions."},
             {
