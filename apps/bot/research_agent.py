@@ -67,7 +67,7 @@ def scrape_serps(
     headers = {"Authorization": f"Bearer {key}"}
     data = _retry(
         lambda: http.post_json(
-            "https://api.firecrawl.dev/v1/search",
+            "https://api.firecrawl.dev/v2/search",
             headers,
             payload,
             timeout,
