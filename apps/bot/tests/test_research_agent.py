@@ -94,6 +94,28 @@ def test_scrape_serps_limits_results() -> None:
     assert len(results) == 1
 
 
+def test_scrape_serps_accepts_v2_nested_results() -> None:
+    response = {
+        "success": True,
+        "data": {
+            "web": [
+                {
+                    "url": "https://example.com/v2",
+                    "title": "V2 Result",
+                    "markdown": "# Intro\nDetails",
+                }
+            ]
+        },
+    }
+    client = FakeClient([response])
+
+    results = scrape_serps("keyword", api_key="test-key", client=client)
+
+    assert len(results) == 1
+    assert results[0]["url"] == "https://example.com/v2"
+    assert results[0]["title"] == "V2 Result"
+
+
 def test_scrape_serps_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
 

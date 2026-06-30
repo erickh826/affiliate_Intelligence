@@ -73,9 +73,7 @@ def scrape_serps(
             timeout,
         )
     )
-    raw_results = data.get("data", [])
-    if not isinstance(raw_results, list):
-        raise ResearchAgentError("Firecrawl response data must be a list")
+    raw_results = _extract_firecrawl_results(data)
 
     return [_competitor_from_result(result) for result in raw_results[:limit]]
 
@@ -205,6 +203,27 @@ def _competitor_from_result(result: Any) -> dict[str, Any]:
         "headings": _extract_headings(body),
         "body_summary": _summarize_body(body),
     }
+
+
+def _extract_firecrawl_results(response: Mapping[str, Any]) -> list[Any]:
+    data = response.get("data")
+    if isinstance(data, list):
+        return data
+
+    if isinstance(data, dict):
+        for key in ("results", "web", "organic", "items", "documents"):
+            candidate = data.get(key)
+            if isinstance(candidate, list):
+                return candidate
+
+    for key in ("results", "web", "organic", "items", "documents"):
+        candidate = response.get(key)
+        if isinstance(candidate, list):
+            return candidate
+
+    raise ResearchAgentError(
+        "Firecrawl response did not include a results list"
+    )
 
 
 def _first_text(source: Mapping[str, Any], keys: tuple[str, ...]) -> str:
