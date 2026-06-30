@@ -183,7 +183,10 @@ def _retry(
             if attempt == attempts - 1:
                 break
             time.sleep(base_delay * (2**attempt))
-    raise ResearchAgentError("external research request failed") from last_error
+    detail = str(last_error) if last_error is not None else "unknown error"
+    raise ResearchAgentError(
+        f"external research request failed: {detail}"
+    ) from last_error
 
 
 def _competitor_from_result(result: Any) -> dict[str, Any]:
