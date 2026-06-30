@@ -41,6 +41,15 @@ class UrlLibHTTPClient:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 body = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            error_body = ""
+            try:
+                error_body = exc.read().decode("utf-8")
+            except Exception:
+                pass
+            raise ResearchAgentError(
+                f"HTTP {exc.code} {exc.reason}: {error_body}"
+            ) from exc
         except urllib.error.URLError as exc:
             raise ResearchAgentError(str(exc)) from exc
 
@@ -63,7 +72,16 @@ def scrape_serps(
         raise ResearchAgentError("FIRECRAWL_API_KEY is required")
 
     http = client or UrlLibHTTPClient()
-    payload = {"query": keyword, "limit": limit}
+    payload = {
+        "query": keyword,
+        "sources": ["web"],
+        "categories": [],
+        "limit": min(limit, 10),
+        "scrapeOptions": {
+            "onlyMainContent": True,
+            "formats": [],
+        },
+    }
     headers = {"Authorization": f"Bearer {key}"}
     data = _retry(
         lambda: http.post_json(
