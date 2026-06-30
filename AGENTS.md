@@ -84,3 +84,21 @@ keywords.db ──► SPEC-01 Bot ──► apps/web/content/*.mdx ──► SPE
 3. Follow naming/style in `.ai-context/conventions.md`
 4. Run existing tests to ensure baseline passes
 5. After changes: lint, test, verify
+
+---
+
+## Cursor Cloud specific instructions
+
+Two independent apps: `apps/bot` (Python 3.11+ CLI pipeline) and `apps/web` (Next.js, npm). The startup update script creates a Python venv at `.venv/` and installs both apps' deps; commands below assume that has already run.
+
+### Python bot (`apps/bot/`)
+- Use the repo venv: prefix commands with `/workspace/.venv/bin/` (e.g. `.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest`). System Python is externally managed (PEP 668); install only inside the venv.
+- The bot is a **CLI batch job, not a server**. Run it from inside `apps/bot/` (imports are flat; `pyproject.toml` sets `pythonpath = ["."]`). Example: `cd apps/bot && /workspace/.venv/bin/python main.py --batch 3 --dry-run`.
+- `--dry-run` runs the full pipeline **fully offline** (research + LLM are stubbed) and needs no API keys, but it produces filler text and does **not** write MDX files. Live generation (no `--dry-run`) writes files and requires `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `FIRECRAWL_API_KEY`.
+- Lint/test commands are in the root rule files (`ruff check apps/bot/`, `pytest apps/bot/tests/`) — run them via the venv.
+- Running the bot mutates `data/keywords.db` (keyword statuses) and, in live mode, writes into `apps/web/content/` + `monetisation/affiliate_map/`. These are tracked files; revert incidental test-run changes before committing.
+
+### Web app (`apps/web/`)
+- Dev server: `npm run dev --prefix apps/web` on port **3000**. Standard scripts (`dev`/`build`/`start`/`lint`/`test`) are in `apps/web/package.json`.
+- `npm run build` runs a `next-sitemap` postbuild that rewrites tracked files under `apps/web/public/` (`sitemap*.xml`, `robots.txt`); revert these after a local build unless intentionally updating them.
+- The web app reads bot-generated MDX from `apps/web/content/` at build time; there is no network call between the two apps.
