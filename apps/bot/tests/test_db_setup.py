@@ -120,9 +120,9 @@ class TestToSlug:
 
 
 class TestSeed:
-    def test_seed_count_at_least_fifty(self, tmp_db: Path) -> None:
+    def test_seed_count_meets_week1_target(self, tmp_db: Path) -> None:
         count = seed(tmp_db)
-        assert count >= 50
+        assert count >= 200
 
     def test_seed_covers_all_seed_rows(self, tmp_db: Path) -> None:
         count = seed(tmp_db)
@@ -158,7 +158,7 @@ class TestSeed:
             "SELECT COUNT(*) FROM keywords WHERE monthly_volume > 100 AND difficulty < 45"
         ).fetchone()[0]
         conn.close()
-        assert selectable >= 50
+        assert selectable >= 200
 
     def test_all_intents_represented(self, tmp_db: Path) -> None:
         seed(tmp_db)
