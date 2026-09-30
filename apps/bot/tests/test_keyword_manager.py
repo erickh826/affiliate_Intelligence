@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
-from keyword_manager import KeywordManager, _DIFFICULTY_MAX, _VOLUME_MIN
+from keyword_manager import _DIFFICULTY_MAX, _VOLUME_MIN, KeywordManager
 
 _INSERT = (
     "INSERT INTO keywords "

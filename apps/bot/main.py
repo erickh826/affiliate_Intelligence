@@ -67,18 +67,41 @@ async def _process_one(
     slug = str(row.get("slug") or row.get("keyword", "unknown"))
     try:
         research = build_research_bundle(row["keyword"], row["intent"], dry_run=dry_run)
-        outline = await generate_outline(
-            row["keyword"], row["intent"], research, dry_run=dry_run
-        )
-        sections = await write_sections(
-            outline,
-            research,
-            row["intent"],
-            dry_run=dry_run,
-            affiliate_partner=row.get("affiliate_partner"),
-        )
-        article = assemble_article(row, outline, sections)
-        qa_result = run_quality_gate(article, existing_articles=articles_written)
+        attempts = 1 if dry_run else 2
+        article: dict[str, Any] | None = None
+        qa_result = None
+        for attempt in range(attempts):
+            outline = await generate_outline(
+                row["keyword"], row["intent"], research, dry_run=dry_run
+            )
+            sections = await write_sections(
+                outline,
+                research,
+                row["intent"],
+                dry_run=dry_run,
+                affiliate_partner=row.get("affiliate_partner"),
+            )
+            article = assemble_article(row, outline, sections)
+            qa_result = run_quality_gate(article, existing_articles=articles_written)
+            if qa_result.overall != "FAIL":
+                break
+            if any(
+                check.result == "FAIL" and check.action == "skip"
+                for check in qa_result.checks
+            ):
+                break
+            if attempt < attempts - 1:
+                _LOG.info(
+                    json.dumps(
+                        {
+                            "event": "article_retry",
+                            "slug": slug,
+                            "attempt": attempt + 1,
+                        }
+                    )
+                )
+        if article is None or qa_result is None:
+            raise MDXWriterError("article generation produced no result")
         merged = apply_article_updates(article, qa_result)
         artifact = build_article_artifact(merged, qa_result)
         result = write_article(
@@ -94,7 +117,7 @@ async def _process_one(
             json.dumps({"event": "article_error", "slug": slug, "error": str(exc)})
         )
         return "failed"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         km.update_status(slug, "failed")
         _LOG.info(
             json.dumps(

@@ -111,6 +111,21 @@ class TestSectionPrompt:
         p = _section_prompt("H2", ["H3"], [], "comparison")
         assert "INTERNAL LINKING: Use placeholders like [Link Text]({{LINK_SLUG}})" in p
 
+    def test_first_section_requires_exact_keyword(self) -> None:
+        prompt = _section_prompt(
+            "H2",
+            ["H3"],
+            [],
+            "comparison",
+            keyword="best ai writing tools",
+        )
+        assert "exact phrase 'best ai writing tools'" in prompt
+
+    def test_outline_prompt_includes_schema(self) -> None:
+        prompt = _outline_prompt("best ai tools", "comparison", "research")
+        assert '"faqs"' in prompt
+        assert "array of strings" in prompt
+
     def test_section_prompt_contains_style_guide(self) -> None:
         p = _section_prompt(
             "H2", ["H3"], [], "comparison", style_guide="Professional and authoritative"
@@ -260,6 +275,52 @@ class TestGenerateOutlineDryRun:
         assert "comparison_columns" in outline
 
 
+class TestNormalizeOutline:
+    def test_clamps_long_meta_before_validation(self) -> None:
+        outline = _dry_run_outline("best ai tools", "comparison")
+        outline["meta_description"] = "x" * 200
+        with patch(
+            "generation_agent._call_outline",
+            new_callable=AsyncMock,
+            return_value=outline,
+        ):
+            result = asyncio.run(
+                generate_outline("best ai tools", "comparison", {}, dry_run=False)
+            )
+        assert 100 <= len(result["meta_description"]) <= 165
+
+    def test_coerces_faq_objects_to_strings(self) -> None:
+        outline = _dry_run_outline("best ai tools", "comparison")
+        outline["faqs"] = [{"question": f"Question {i}?"} for i in range(5)]
+        with patch(
+            "generation_agent._call_outline",
+            new_callable=AsyncMock,
+            return_value=outline,
+        ):
+            result = asyncio.run(
+                generate_outline("best ai tools", "comparison", {}, dry_run=False)
+            )
+        assert result["faqs"] == [f"Question {i}?" for i in range(5)]
+
+    def test_trims_sections_to_schema_max(self) -> None:
+        outline = _dry_run_outline("best ai tools", "comparison")
+        outline["sections"] = outline["sections"] + outline["sections"]
+        with patch(
+            "generation_agent._call_outline",
+            new_callable=AsyncMock,
+            return_value=outline,
+        ):
+            result = asyncio.run(
+                generate_outline("best ai tools", "comparison", {}, dry_run=False)
+            )
+        assert len(result["sections"]) == 8
+
+    def test_section_model_is_current_haiku(self) -> None:
+        from generation_agent import _SECTION_MODEL
+
+        assert _SECTION_MODEL == "claude-haiku-4-5-20251001"
+
+
 class TestGenerateOutlineLive:
     def test_calls_call_outline(self) -> None:
         expected = _dry_run_outline("best ai tools", "comparison")
@@ -279,13 +340,15 @@ class TestGenerateOutlineLive:
         from generation_agent import ValidationError
 
         bad_outline: dict[str, Any] = {"h1": "title"}
-        with patch(
-            "generation_agent._call_outline",
-            new_callable=AsyncMock,
-            return_value=bad_outline,
+        with (
+            patch(
+                "generation_agent._call_outline",
+                new_callable=AsyncMock,
+                return_value=bad_outline,
+            ),
+            pytest.raises(ValidationError),
         ):
-            with pytest.raises(ValidationError):
-                asyncio.run(generate_outline("kw", "comparison", {}, dry_run=False))
+            asyncio.run(generate_outline("kw", "comparison", {}, dry_run=False))
 
 
 class TestWriteSectionsDryRun:
@@ -392,6 +455,33 @@ class TestWriteSectionsLive:
             )
 
         openai_mock.assert_not_called()
+
+    def test_only_first_section_receives_exact_keyword(self) -> None:
+        captured: list[tuple[Any, ...]] = []
+
+        async def capture(*args: Any, **_kwargs: Any) -> str:
+            captured.append(args)
+            return "word " * 40
+
+        outline = {
+            "sections": [
+                {"h2": "Intro", "h3s": ["A"]},
+                {"h2": "Pricing", "h3s": ["B"]},
+            ]
+        }
+        with patch("generation_agent._call_anthropic_section", side_effect=capture):
+            asyncio.run(
+                write_sections(
+                    outline,
+                    _MOCK_RESEARCH,
+                    "comparison",
+                    dry_run=False,
+                )
+            )
+
+        by_heading = {args[0]: args[-1] for args in captured}
+        assert by_heading["Intro"] == "best ai writing tools"
+        assert by_heading["Pricing"] is None
 
     def test_sections_include_word_count(self) -> None:
         async def mock_content(*a: Any, **kw: Any) -> str:

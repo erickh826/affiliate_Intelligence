@@ -6,8 +6,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from db_setup import init_db
-from mdx_writer import apply_article_updates, build_article_artifact, write_article
+from mdx_writer import (
+    MDXWriterError,
+    apply_article_updates,
+    build_article_artifact,
+    write_article,
+)
 from models import ArticleArtifact
 from quality_gate import CheckResult, QAResult
 
@@ -68,6 +75,13 @@ def _frontmatter_keys(mdx: str) -> list[str]:
     return [line.split(":", 1)[0] for line in lines[1:end]]
 
 
+@pytest.fixture()
+def empty_db(tmp_path: Path) -> Path:
+    path = tmp_path / "keywords.db"
+    init_db(path).close()
+    return path
+
+
 def _db_with_keyword(path: Path, slug: str = "best-ai-writing-tools") -> None:
     conn = init_db(path)
     conn.execute(
@@ -90,11 +104,14 @@ def _db_with_keyword(path: Path, slug: str = "best-ai-writing-tools") -> None:
     conn.close()
 
 
-def test_frontmatter_fields_match_spec_01_section_8_1(tmp_path: Path) -> None:
+def test_frontmatter_fields_match_spec_01_section_8_1(
+    tmp_path: Path, empty_db: Path
+) -> None:
     qa_result = _qa_result()
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
+        db_path=empty_db,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
         today=date(2026, 5, 17),
@@ -117,11 +134,14 @@ def test_frontmatter_fields_match_spec_01_section_8_1(tmp_path: Path) -> None:
     assert 'published_at: "2026-05-17"' in mdx
 
 
-def test_article_updates_are_applied_to_frontmatter(tmp_path: Path) -> None:
+def test_article_updates_are_applied_to_frontmatter(
+    tmp_path: Path, empty_db: Path
+) -> None:
     qa_result = _qa_result(meta_description="Compare updated metadata from QA.")
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
+        db_path=empty_db,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
     )
@@ -131,11 +151,12 @@ def test_article_updates_are_applied_to_frontmatter(tmp_path: Path) -> None:
     assert 'description: "Compare updated metadata from QA."' in mdx
 
 
-def test_output_paths(tmp_path: Path) -> None:
+def test_output_paths(tmp_path: Path, empty_db: Path) -> None:
     qa_result = _qa_result()
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
+        db_path=empty_db,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
     )
@@ -176,11 +197,12 @@ def test_failed_qa_skips_article_write(tmp_path: Path) -> None:
     assert not (tmp_path / "affiliate_map").exists()
 
 
-def test_faq_json_output(tmp_path: Path) -> None:
+def test_faq_json_output(tmp_path: Path, empty_db: Path) -> None:
     qa_result = _qa_result()
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
+        db_path=empty_db,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
     )
@@ -199,11 +221,12 @@ def test_faq_json_output(tmp_path: Path) -> None:
     }
 
 
-def test_affiliate_map_stub_output(tmp_path: Path) -> None:
+def test_affiliate_map_stub_output(tmp_path: Path, empty_db: Path) -> None:
     qa_result = _qa_result()
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
+        db_path=empty_db,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
     )
@@ -242,8 +265,11 @@ def test_dry_run_skips_deploy_and_db_update(tmp_path: Path, monkeypatch: Any) ->
 
     assert result.db_updated is False
     assert result.deploy_triggered is False
+    assert result.mdx_path is None
     assert calls == []
     assert row == ("generating", None)
+    assert not (tmp_path / "content").exists()
+    assert not (tmp_path / "affiliate_map").exists()
 
 
 def test_publish_updates_db_status_and_published_at(
@@ -274,4 +300,38 @@ def test_publish_updates_db_status_and_published_at(
     assert result.db_updated is True
     assert result.deploy_triggered is True
     assert calls == ["https://deploy.example/hook"]
+    assert row == ("published", "2026-05-17")
+
+
+def test_deploy_hook_failure_keeps_published_status(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    db_path = tmp_path / "keywords.db"
+    _db_with_keyword(db_path)
+    monkeypatch.setattr("mdx_writer.time.sleep", lambda *_args, **_kwargs: None)
+    monkeypatch.setenv("VERCEL_DEPLOY_HOOK_URL", "https://deploy.example/hook")
+    qa_result = _qa_result()
+
+    def fail(_url: str) -> None:
+        raise MDXWriterError("hook down")
+
+    result = write_article(
+        _artifact(_article(), qa_result),
+        dry_run=False,
+        db_path=db_path,
+        content_root=tmp_path / "content",
+        affiliate_map_root=tmp_path / "affiliate_map",
+        deploy_post=fail,
+        today=date(2026, 5, 17),
+    )
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT status, published_at FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+
+    assert result.db_updated is True
+    assert result.deploy_triggered is False
+    assert result.mdx_path is not None and result.mdx_path.exists()
     assert row == ("published", "2026-05-17")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from db_setup import DB_PATH, init_db
 
@@ -18,10 +18,10 @@ class KeywordManager:
         self._conn = init_db(db_path)
         self._conn.row_factory = sqlite3.Row
 
-    def __enter__(self) -> KeywordManager:
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         self.close()
 
     def select_keywords(

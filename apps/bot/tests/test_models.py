@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from quality_gate import CheckResult, QAResult
-
 from models import (
     AffiliateMap,
     ArticleArtifact,
@@ -11,6 +9,7 @@ from models import (
     GenerationContext,
     ResearchContext,
 )
+from quality_gate import CheckResult, QAResult
 
 _ALL_CONTRACTS = (
     ResearchContext,
