@@ -5,35 +5,44 @@ import {
   getFAQBySlug,
   getMDXDataBySlug,
   getHeadings,
+  neutralizeUnresolvedLinks,
   splitAtH2,
 } from '../lib/mdx';
 
 describe('mdx loader', () => {
-  it('finds sample article in getAllArticles', async () => {
+  it('loads the published live article', async () => {
     const articles = await getAllArticles();
-    expect(
-      articles.some(
-        (article) => article.frontmatter.slug === 'best-ai-writing-tools-2026',
-      ),
-    ).toBe(true);
+    const article = articles.find(
+      (item) => item.frontmatter.slug === 'best-ai-writing-tools-2026',
+    );
+    expect(article?.frontmatter.category).toBe('ai-writing');
+    expect(article?.frontmatter.published_at).toBe('2026-09-30');
+    expect(article?.frontmatter.affiliate_partner).toBe('jasper');
+    expect((article?.content.length ?? 0) > 1000).toBe(true);
+    expect(article?.content).not.toContain('{{LINK_');
   });
 
-  it('parses frontmatter for sample article', async () => {
+  it('loads the live article by category and slug', async () => {
     const article = await getMDXDataBySlug(
       'ai-writing',
       'best-ai-writing-tools-2026',
     );
-    expect(article).not.toBeNull();
-    expect(article?.frontmatter.title).toContain('Best');
-    expect(article?.frontmatter.category).toBe('ai-writing');
-    expect(article?.frontmatter.schema_type).toBe('Article');
-    expect(article?.content).toContain('#');
+    expect(article?.frontmatter.title).toContain('Best AI Writing Tools 2026');
+    expect(article?.frontmatter.slug).toBe('best-ai-writing-tools-2026');
   });
 
-  it('loads FAQ json for sample slug', async () => {
+  it('loads the published FAQ file', async () => {
     const faq = await getFAQBySlug('best-ai-writing-tools-2026');
-    expect(faq).not.toBeNull();
-    expect(faq?.faqs.length).toBeGreaterThan(0);
+    expect(faq?.slug).toBe('best-ai-writing-tools-2026');
+    expect((faq?.faqs.length ?? 0) >= 4).toBe(true);
+  });
+
+  it('returns null for a slug with no published article', async () => {
+    const article = await getMDXDataBySlug(
+      'ai-writing',
+      'this-slug-does-not-exist-xyz',
+    );
+    expect(article).toBeNull();
   });
 
   it('excludes faq directory from article scan', async () => {
@@ -41,6 +50,16 @@ describe('mdx loader', () => {
     expect(
       articles.every((article) => article.frontmatter.category !== 'faq'),
     ).toBe(true);
+  });
+});
+
+describe('neutralizeUnresolvedLinks', () => {
+  it('replaces unresolved link placeholders with their anchor text', () => {
+    const content =
+      'See [AI writing tools]({{LINK_AI_WRITING}}) and [Jasper]({{LINK_JASPER}}).';
+    expect(neutralizeUnresolvedLinks(content)).toBe(
+      'See AI writing tools and Jasper.',
+    );
   });
 });
 
@@ -78,6 +97,16 @@ describe('getHeadings', () => {
     expect(result[0].id).toBe('what-is-ai-a-guide');
   });
 
+  it('gives duplicate headings distinct ids', () => {
+    const content =
+      '## Pricing Comparison Table\n\n## Pricing Comparison Table';
+    const result = getHeadings(content);
+    expect(result.map((heading) => heading.id)).toEqual([
+      'pricing-comparison-table',
+      'pricing-comparison-table-2',
+    ]);
+  });
+
   it('strips leading and trailing hyphens from id', () => {
     const content = '## (Test Heading!)';
     const result = getHeadings(content);
@@ -113,15 +142,12 @@ describe('splitAtH2', () => {
     expect(parts.slice(2).length).toBeGreaterThan(1);
   });
 
-  it('sample article has 3+ H2s, confirming inline CTA renders', async () => {
-    const article = await getMDXDataBySlug(
-      'ai-writing',
-      'best-ai-writing-tools-2026',
-    );
-    expect(article).not.toBeNull();
-    expect(article!.contentParts.slice(2).length).toBeGreaterThan(1);
-    expect(
-      article!.headings.filter((h) => h.level === 2).length,
-    ).toBeGreaterThanOrEqual(3);
+  it('three H2s leave a trailing part so the inline CTA can render', () => {
+    const content =
+      'intro\n\n## H2 One\n\ntext\n\n## H2 Two\n\ntext\n\n## H2 Three\n\ntext';
+    const parts = splitAtH2(content);
+    const headings = getHeadings(content);
+    expect(parts.slice(2).length).toBeGreaterThan(1);
+    expect(headings.filter((heading) => heading.level === 2).length).toBe(3);
   });
 });

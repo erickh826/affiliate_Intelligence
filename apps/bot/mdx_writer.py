@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib import request
 from urllib.error import URLError
+
+_LOG = logging.getLogger(__name__)
+_DEPLOY_RETRY_DELAY = 60.0
 
 from db_setup import DB_PATH
 from models import AffiliateMap, ArticleArtifact, FAQItem, Frontmatter
@@ -181,8 +187,24 @@ def _trigger_deploy(deploy_post: DeployPost) -> bool:
     url = os.environ.get("VERCEL_DEPLOY_HOOK_URL")
     if not url:
         return False
-    deploy_post(url)
-    return True
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            deploy_post(url)
+            return True
+        except (MDXWriterError, OSError, TimeoutError) as exc:
+            last_error = exc
+            if attempt == 0:
+                time.sleep(_DEPLOY_RETRY_DELAY)
+    _LOG.info(
+        json.dumps(
+            {
+                "event": "deploy_failed",
+                "error": str(last_error) if last_error is not None else "unknown",
+            }
+        )
+    )
+    return False
 
 
 def build_article_artifact(
@@ -218,10 +240,13 @@ def write_article(
     if qa_result.overall == "FAIL":
         return MDXWriteResult(slug=slug, skipped=True, reason="qa_failed")
 
+    if dry_run:
+        return MDXWriteResult(slug=slug, skipped=False)
+
     category = str(artifact.get("category") or "").strip()
     if not category:
         raise MDXWriterError("missing article field: category")
-    published_at = (today or date.today()).isoformat()
+    published_at = (today or datetime.now(UTC).date()).isoformat()
     mdx_path = content_root / category / f"{slug}.mdx"
     faq_path = content_root / "faq" / f"{slug}.faq.json"
     affiliate_map_path = affiliate_map_root / f"{slug}.json"
@@ -242,12 +267,9 @@ def write_article(
     )
     _write_json(affiliate_map_path, artifact["affiliate_map"])
 
-    db_updated = False
-    deploy_triggered = False
-    if not dry_run:
-        _update_published_status(db_path, slug, published_at)
-        db_updated = True
-        deploy_triggered = _trigger_deploy(deploy_post)
+    _update_published_status(db_path, slug, published_at)
+    db_updated = True
+    deploy_triggered = _trigger_deploy(deploy_post)
 
     return MDXWriteResult(
         slug=slug,

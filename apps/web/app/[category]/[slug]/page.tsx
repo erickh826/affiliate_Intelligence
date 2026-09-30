@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
+import remarkGfm from 'remark-gfm';
 import { mdxComponents } from '../../../lib/mdx-components';
 import {
   getAllArticles,
@@ -23,6 +24,11 @@ import TableOfContents from '../../../components/TableOfContents';
 import YouTubeEmbed from '../../../components/YouTubeEmbed';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const mdxRemoteOptions = {
+  mdxOptions: {
+    remarkPlugins: [remarkGfm],
+  },
+};
 
 export async function generateStaticParams() {
   const articles = await getAllArticles();
@@ -146,17 +152,29 @@ export default async function ArticlePage({
           )}
 
           <div className="prose prose-invert prose-teal max-w-none">
-            <MDXRemote source={contentParts[0]} components={mdxComponents} />
+            <MDXRemote
+              source={contentParts[0]}
+              components={mdxComponents}
+              options={mdxRemoteOptions}
+            />
 
             {contentParts[1] && (
-              <MDXRemote source={contentParts[1]} components={mdxComponents} />
+              <MDXRemote
+                source={contentParts[1]}
+                components={mdxComponents}
+                options={mdxRemoteOptions}
+              />
             )}
 
             <YouTubeEmbed />
 
             {contentParts.slice(2).map((part, i, arr) => (
               <Fragment key={i + 2}>
-                <MDXRemote source={part} components={mdxComponents} />
+                <MDXRemote
+                  source={part}
+                  components={mdxComponents}
+                  options={mdxRemoteOptions}
+                />
                 {i === 0 && arr.length > 1 && ctaConfig && (
                   <AffiliateCTA placement="inline" {...ctaConfig} />
                 )}

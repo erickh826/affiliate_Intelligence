@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import jsonschema
 
 _OUTLINE_MODEL = "gpt-4o-mini"
-_SECTION_MODEL = "claude-3-5-haiku-20241022"
+_SECTION_MODEL = "claude-haiku-4-5-20251001"
 _FALLBACK_MODEL = "gpt-4o"
 _MAX_CONCURRENCY = 3
 
@@ -73,8 +74,29 @@ def _outline_prompt(keyword: str, intent: str, research_summary: str) -> str:
         "- Meta description (150–160 chars)\n"
         "- 6–8 H2 sections with 2–3 H3 each\n"
         "- 5 FAQ questions from PAA data\n"
-        "- Comparison table columns (if intent=comparison)"
+        "- Comparison table columns (if intent=comparison)\n\n"
+        "Return a JSON object matching this schema. "
+        "faqs must be an array of strings, not objects. "
+        "The h1 must contain the keyword exactly.\n"
+        f"{_outline_schema_text()}"
     )
+
+
+def _outline_model() -> str:
+    return os.environ.get("OPENAI_MODEL_OUTLINE", _OUTLINE_MODEL)
+
+
+def _section_model() -> str:
+    return os.environ.get("ANTHROPIC_MODEL_WRITING", _SECTION_MODEL)
+
+
+def _fallback_model() -> str:
+    return os.environ.get("OPENAI_MODEL_FALLBACK", _FALLBACK_MODEL)
+
+
+def _outline_schema_text() -> str:
+    schema_path = Path(__file__).parent / "outline_schema.json"
+    return schema_path.read_text(encoding="utf-8")
 
 
 def _section_prompt(
@@ -84,6 +106,7 @@ def _section_prompt(
     intent: str,
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
+    keyword: str | None = None,
 ) -> str:
     eeat = _EEAT.get(intent, "")
     style = f"Tone/Style: {style_guide}\n" if style_guide else ""
@@ -99,12 +122,19 @@ def _section_prompt(
         "that likely have their own pages (e.g. [AI Writing Tools]({{LINK_AI_WRITING}}))."
     )
 
+    keyword_rule = ""
+    if keyword:
+        keyword_rule = (
+            f"The first 100 words must contain the exact phrase '{keyword}'.\n"
+        )
+
     return (
         f"{style}"
         f"Section: '{h2}'\n"
         f"Sub-sections: {h3s}\n"
         f"Facts to include: {facts[:3]}\n"
         f"Target: 300–400 words. Include ≥1 pricing data point.\n"
+        f"{keyword_rule}"
         f"{eeat}\n"
         f"{cta}\n"
         f"{internal_links}"
@@ -209,7 +239,7 @@ async def _call_outline(
     try:
         client = AsyncOpenAI()
         response = await client.chat.completions.create(
-            model=_OUTLINE_MODEL,
+            model=_outline_model(),
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": _SYSTEM_OUTLINE},
@@ -232,20 +262,27 @@ async def _call_anthropic_section(
     intent: str,
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
+    keyword: str | None = None,
 ) -> str:
-    from anthropic import AsyncAnthropic, AnthropicError
+    from anthropic import AnthropicError, AsyncAnthropic
 
     try:
         client = AsyncAnthropic()
         message = await client.messages.create(
-            model=_SECTION_MODEL,
-            max_tokens=1024,
+            model=_section_model(),
+            max_tokens=1400,
             system=_SYSTEM_SECTION,
             messages=[
                 {
                     "role": "user",
                     "content": _section_prompt(
-                        h2, h3s, facts, intent, style_guide, affiliate_partner
+                        h2,
+                        h3s,
+                        facts,
+                        intent,
+                        style_guide,
+                        affiliate_partner,
+                        keyword,
                     ),
                 }
             ],
@@ -262,19 +299,26 @@ async def _call_openai_section(
     intent: str,
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
+    keyword: str | None = None,
 ) -> str:
     from openai import AsyncOpenAI, OpenAIError
 
     try:
         client = AsyncOpenAI()
         response = await client.chat.completions.create(
-            model=_FALLBACK_MODEL,
+            model=_fallback_model(),
             messages=[
                 {"role": "system", "content": _SYSTEM_SECTION},
                 {
                     "role": "user",
                     "content": _section_prompt(
-                        h2, h3s, facts, intent, style_guide, affiliate_partner
+                        h2,
+                        h3s,
+                        facts,
+                        intent,
+                        style_guide,
+                        affiliate_partner,
+                        keyword,
                     ),
                 },
             ],
@@ -294,18 +338,18 @@ async def _write_one_section(
     sem: asyncio.Semaphore,
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
+    keyword: str | None = None,
 ) -> dict[str, Any]:
     async with sem:
         if dry_run:
             return _dry_run_section(h2, h3s)
         try:
             content = await _call_anthropic_section(
-                h2, h3s, facts, intent, style_guide, affiliate_partner
+                h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
             )
         except LLMAPIError:
-            # Fallback to OpenAI
             content = await _call_openai_section(
-                h2, h3s, facts, intent, style_guide, affiliate_partner
+                h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
             )
         return {
             "h2": h2,
@@ -313,6 +357,57 @@ async def _write_one_section(
             "content": content,
             "word_count": len(content.split()),
         }
+
+
+def _clamp_meta_description(text: str) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) > 165:
+        truncated = cleaned[:165].rsplit(" ", 1)[0].rstrip(" ,.;:")
+        cleaned = truncated if len(truncated) >= 100 else cleaned[:165].rstrip(" ,.;:")
+    pad = " Compare features, pricing, and practical trade-offs for this search."
+    while len(cleaned) < 100:
+        cleaned = f"{cleaned.rstrip('.')}.{pad}"
+        if len(cleaned) > 165:
+            cleaned = cleaned[:165].rsplit(" ", 1)[0].rstrip(" ,.;:")
+            break
+    return cleaned
+
+
+def _normalize_outline(outline: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(outline, dict):
+        return outline
+    normalized = dict(outline)
+    meta = normalized.get("meta_description")
+    if isinstance(meta, str):
+        normalized["meta_description"] = _clamp_meta_description(meta)
+    faqs = normalized.get("faqs")
+    if isinstance(faqs, list):
+        questions: list[str] = []
+        for item in faqs:
+            if isinstance(item, str) and item.strip():
+                questions.append(item.strip())
+            elif isinstance(item, dict):
+                question = item.get("question") or item.get("q")
+                if isinstance(question, str) and question.strip():
+                    questions.append(question.strip())
+        normalized["faqs"] = questions
+    sections = normalized.get("sections")
+    if isinstance(sections, list):
+        cleaned: list[dict[str, Any]] = []
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            h2 = section.get("h2")
+            h3s = section.get("h3s")
+            if not isinstance(h2, str) or not h2.strip():
+                continue
+            if not isinstance(h3s, list):
+                h3s = []
+            cleaned.append(
+                {"h2": h2.strip(), "h3s": [h3 for h3 in h3s if isinstance(h3, str)]}
+            )
+        normalized["sections"] = cleaned[:8]
+    return normalized
 
 
 async def generate_outline(
@@ -323,11 +418,22 @@ async def generate_outline(
 ) -> dict[str, Any]:
     if dry_run:
         outline = _dry_run_outline(keyword, intent)
-    else:
-        summary = _summarise_research(research_bundle)
-        outline = await _call_outline(keyword, intent, summary)
-    _validate_outline(outline)
-    return outline
+        _validate_outline(outline)
+        return outline
+
+    summary = _summarise_research(research_bundle)
+    last_error: ValidationError | None = None
+    for _attempt in range(3):
+        outline = _normalize_outline(await _call_outline(keyword, intent, summary))
+        try:
+            _validate_outline(outline)
+        except ValidationError as exc:
+            last_error = exc
+            continue
+        return outline
+    if last_error is None:
+        raise ValidationError("Outline validation failed")
+    raise last_error
 
 
 async def write_sections(
@@ -340,6 +446,7 @@ async def write_sections(
 ) -> list[dict[str, Any]]:
     sem = asyncio.Semaphore(_MAX_CONCURRENCY)
     facts = research_bundle.get("facts", [])
+    keyword = str(research_bundle.get("keyword") or "").strip()
     tasks = [
         _write_one_section(
             s["h2"],
@@ -350,7 +457,8 @@ async def write_sections(
             sem,
             style_guide,
             affiliate_partner,
+            keyword if index == 0 and keyword else None,
         )
-        for s in outline["sections"]
+        for index, s in enumerate(outline["sections"])
     ]
     return list(await asyncio.gather(*tasks))

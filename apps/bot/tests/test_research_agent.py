@@ -27,8 +27,28 @@ class FakeClient:
         timeout: float,
     ) -> Mapping[str, Any]:
         self.calls.append(
-            {"url": url, "headers": headers, "payload": payload, "timeout": timeout}
+            {
+                "method": "POST",
+                "url": url,
+                "headers": headers,
+                "payload": payload,
+                "timeout": timeout,
+            }
         )
+        return self._next_response()
+
+    def get_json(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+    ) -> Mapping[str, Any]:
+        self.calls.append(
+            {"method": "GET", "url": url, "headers": headers, "timeout": timeout}
+        )
+        return self._next_response()
+
+    def _next_response(self) -> Mapping[str, Any]:
         response = self.responses.pop(0)
         if isinstance(response, Exception):
             raise response
@@ -52,8 +72,8 @@ def firecrawl_response() -> Mapping[str, Any]:
     }
 
 
-def perplexity_response() -> Mapping[str, Any]:
-    content = {
+def research_payload() -> dict[str, Any]:
+    return {
         "facts": [{"claim": "Tool A costs $20/month", "source": "vendor"}],
         "tools_mentioned": [
             {
@@ -65,7 +85,21 @@ def perplexity_response() -> Mapping[str, Any]:
         ],
         "faq_seeds": ["What is the best AI writing tool?"],
     }
-    return {"choices": [{"message": {"content": json.dumps(content)}}]}
+
+
+def perplexity_response() -> Mapping[str, Any]:
+    content = json.dumps(research_payload())
+    return {
+        "id": "resp_test",
+        "status": "completed",
+        "output_text": content,
+        "output": [
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": content}],
+            }
+        ],
+    }
 
 
 def test_scrape_serps_extracts_competitor_records() -> None:
@@ -78,6 +112,10 @@ def test_scrape_serps_extracts_competitor_records() -> None:
     assert results[0]["title"] == "Example A"
     assert results[0]["headings"] == ["Intro", "Pricing"]
     assert "Body text" in results[0]["body_summary"]
+    payload = client.calls[0]["payload"]
+    assert payload["sources"] == ["web"]
+    assert payload["scrapeOptions"]["formats"] == ["markdown"]
+    assert client.calls[0]["url"] == "https://api.firecrawl.dev/v2/search"
 
 
 def test_scrape_serps_limits_results() -> None:
@@ -123,7 +161,11 @@ def test_scrape_serps_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
         scrape_serps("keyword", client=FakeClient([]))
 
 
-def test_query_perplexity_extracts_enrichment() -> None:
+def test_query_perplexity_extracts_enrichment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PERPLEXITY_PRESET", raising=False)
+    monkeypatch.delenv("PERPLEXITY_MODEL", raising=False)
     client = FakeClient([perplexity_response()])
 
     result = query_perplexity("best ai writer", api_key="test-key", client=client)
@@ -131,6 +173,11 @@ def test_query_perplexity_extracts_enrichment() -> None:
     assert result["facts"] == [{"claim": "Tool A costs $20/month", "source": "vendor"}]
     assert result["tools_mentioned"][0]["name"] == "Tool A"
     assert result["faq_seeds"] == ["What is the best AI writing tool?"]
+    payload = client.calls[0]["payload"]
+    assert client.calls[0]["url"] == "https://api.perplexity.ai/v1/agent"
+    assert payload["preset"] == "high"
+    assert payload["background"] is True
+    assert payload["response_format"]["type"] == "json_schema"
 
 
 def test_query_perplexity_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -231,3 +278,64 @@ class TestBuildResearchBundleDryRun:
             perplexity_api_key=None,
         )
         assert bundle["keyword"] == "test keyword"
+
+
+def test_query_perplexity_polls_background_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = json.dumps(research_payload())
+    client = FakeClient(
+        [
+            {"id": "resp_1", "status": "in_progress"},
+            {"id": "resp_1", "status": "completed", "output_text": content},
+        ]
+    )
+    monkeypatch.setattr("research_agent.time.sleep", lambda *_args, **_kwargs: None)
+
+    result = query_perplexity(
+        "best ai writer",
+        api_key="test-key",
+        client=client,
+        max_wait=5,
+        poll_interval=0,
+    )
+
+    assert result["facts"][0]["claim"] == "Tool A costs $20/month"
+    assert client.calls[0]["method"] == "POST"
+    assert client.calls[1]["method"] == "GET"
+    assert client.calls[1]["url"] == "https://api.perplexity.ai/v1/agent/resp_1"
+
+
+def test_query_perplexity_parses_fenced_json() -> None:
+    fenced = "```json\n" + json.dumps(research_payload()) + "\n```"
+    client = FakeClient(
+        [{"id": "resp_fenced", "status": "completed", "output_text": fenced}]
+    )
+
+    result = query_perplexity("keyword", api_key="test-key", client=client)
+
+    assert result["tools_mentioned"][0]["name"] == "Tool A"
+
+
+def test_query_perplexity_maps_retired_sonar_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_MODEL", "sonar-deep-research")
+    monkeypatch.delenv("PERPLEXITY_PRESET", raising=False)
+    client = FakeClient([perplexity_response()])
+
+    query_perplexity("keyword", api_key="test-key", client=client)
+
+    assert client.calls[0]["payload"]["preset"] == "high"
+
+
+def test_query_perplexity_preset_env_overrides_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERPLEXITY_MODEL", "sonar-deep-research")
+    monkeypatch.setenv("PERPLEXITY_PRESET", "low")
+    client = FakeClient([perplexity_response()])
+
+    query_perplexity("keyword", api_key="test-key", client=client)
+
+    assert client.calls[0]["payload"]["preset"] == "low"

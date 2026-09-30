@@ -98,6 +98,7 @@ GitHub Actions cron
   → writes apps/web/content/{category}/{slug}.mdx
            apps/web/content/faq/{slug}.faq.json
            monetisation/affiliate_map/{slug}.json
+           data/keywords.db (status=published)
   → git add + commit + push to main
   → Vercel auto-deploy triggered
 ```
@@ -206,7 +207,7 @@ jobs:
         run: |
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/
+          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/ data/keywords.db
           git diff --cached --quiet || git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
           git push
       - name: Trigger Vercel deploy

@@ -5,13 +5,13 @@ from typing import Any, TypedDict
 from quality_gate import QAResult
 
 __all__ = [
-    "ResearchContext",
-    "GeneratedSection",
-    "GenerationContext",
-    "Frontmatter",
-    "FAQItem",
     "AffiliateMap",
     "ArticleArtifact",
+    "FAQItem",
+    "Frontmatter",
+    "GeneratedSection",
+    "GenerationContext",
+    "ResearchContext",
 ]
 
 

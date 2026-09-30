@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -13,12 +14,63 @@ class ResearchAgentError(RuntimeError):
     pass
 
 
+_AGENT_URL = "https://api.perplexity.ai/v1/agent"
+_DEFAULT_PRESET = "high"
+_SONAR_PRESETS = {
+    "sonar": "fast",
+    "sonar-pro": "fast",
+    "sonar-reasoning-pro": "low",
+    "sonar-deep-research": "high",
+    "llama-3.1-sonar-large-128k-online": "high",
+}
+_TERMINAL_AGENT_STATUSES = frozenset({"completed", "failed", "cancelled", "incomplete"})
+_RESEARCH_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "source": {"type": "string"},
+                },
+                "required": ["claim", "source"],
+            },
+        },
+        "tools_mentioned": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "pricing": {"type": "string"},
+                    "pros": {"type": "array", "items": {"type": "string"}},
+                    "cons": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["name"],
+            },
+        },
+        "faq_seeds": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["facts", "tools_mentioned", "faq_seeds"],
+}
+
+
 class HTTPClient(Protocol):
     def post_json(
         self,
         url: str,
         headers: Mapping[str, str],
         payload: Mapping[str, Any],
+        timeout: float,
+    ) -> Mapping[str, Any]:
+        pass
+
+    def get_json(
+        self,
+        url: str,
+        headers: Mapping[str, str],
         timeout: float,
     ) -> Mapping[str, Any]:
         pass
@@ -32,11 +84,31 @@ class UrlLibHTTPClient:
         payload: Mapping[str, Any],
         timeout: float,
     ) -> Mapping[str, Any]:
+        return self._request_json(url, headers, payload, timeout, method="POST")
+
+    def get_json(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        timeout: float,
+    ) -> Mapping[str, Any]:
+        return self._request_json(url, headers, None, timeout, method="GET")
+
+    def _request_json(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        payload: Mapping[str, Any] | None,
+        timeout: float,
+        *,
+        method: str,
+    ) -> Mapping[str, Any]:
+        data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
             url,
-            data=json.dumps(payload).encode("utf-8"),
+            data=data,
             headers={"Content-Type": "application/json", **dict(headers)},
-            method="POST",
+            method=method,
         )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -45,18 +117,18 @@ class UrlLibHTTPClient:
             error_body = ""
             try:
                 error_body = exc.read().decode("utf-8")
-            except Exception:
-                pass
+            except (OSError, UnicodeError):
+                error_body = ""
             raise ResearchAgentError(
                 f"HTTP {exc.code} {exc.reason}: {error_body}"
             ) from exc
         except urllib.error.URLError as exc:
             raise ResearchAgentError(str(exc)) from exc
 
-        data = json.loads(body)
-        if not isinstance(data, dict):
+        parsed = json.loads(body)
+        if not isinstance(parsed, dict):
             raise ResearchAgentError("expected JSON object response")
-        return data
+        return parsed
 
 
 def scrape_serps(
@@ -79,7 +151,7 @@ def scrape_serps(
         "limit": min(limit, 10),
         "scrapeOptions": {
             "onlyMainContent": True,
-            "formats": [],
+            "formats": ["markdown"],
         },
     }
     headers = {"Authorization": f"Bearer {key}"}
@@ -101,7 +173,9 @@ def query_perplexity(
     *,
     api_key: str | None = None,
     client: HTTPClient | None = None,
-    timeout: float = 30.0,
+    timeout: float = 60.0,
+    max_wait: float = 240.0,
+    poll_interval: float = 2.0,
 ) -> dict[str, Any]:
     key = api_key or os.environ.get("PERPLEXITY_API_KEY")
     if not key:
@@ -110,31 +184,44 @@ def query_perplexity(
     http = client or UrlLibHTTPClient()
     headers = {"Authorization": f"Bearer {key}"}
     payload = {
-        "model": "sonar-deep-research",
-        "messages": [
-            {"role": "system", "content": "Extract factual data only. No opinions."},
-            {
-                "role": "user",
-                "content": (
-                    f"Research '{keyword}':\n"
-                    "1. Top 5 tools with pricing\n"
-                    "2. Market statistics with sources\n"
-                    "3. Common user complaints\n"
-                    "4. Expert recommendations\n\n"
-                    "Return JSON with facts, tools_mentioned, and faq_seeds."
-                ),
+        "preset": _perplexity_preset(),
+        "background": True,
+        "instructions": "Extract factual data only. No opinions.",
+        "input": (
+            f"Research '{keyword}':\n"
+            "1. Top 5 tools with pricing\n"
+            "2. Market statistics with sources\n"
+            "3. Common user complaints\n"
+            "4. Expert recommendations\n\n"
+            "Return JSON with facts, tools_mentioned, and faq_seeds."
+        ),
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "research_bundle",
+                "schema": _RESEARCH_JSON_SCHEMA,
             },
-        ],
+        },
     }
-    data = _retry(
+    created = _retry(
         lambda: http.post_json(
-            "https://api.perplexity.ai/chat/completions",
+            _AGENT_URL,
             headers,
             payload,
             timeout,
         )
     )
-    content = _extract_message_content(data)
+    final = _await_agent_response(
+        http,
+        created,
+        headers,
+        timeout=timeout,
+        max_wait=max_wait,
+        poll_interval=poll_interval,
+    )
+    content = _extract_agent_output_text(final)
+    if not content:
+        raise ResearchAgentError("Perplexity agent response missing content")
     return _parse_perplexity_content(content)
 
 
@@ -239,9 +326,7 @@ def _extract_firecrawl_results(response: Mapping[str, Any]) -> list[Any]:
         if isinstance(candidate, list):
             return candidate
 
-    raise ResearchAgentError(
-        "Firecrawl response did not include a results list"
-    )
+    raise ResearchAgentError("Firecrawl response did not include a results list")
 
 
 def _first_text(source: Mapping[str, Any], keys: tuple[str, ...]) -> str:
@@ -266,6 +351,107 @@ def _summarize_body(body: str, limit: int = 500) -> str:
     return normalized[:limit]
 
 
+def _perplexity_preset() -> str:
+    preset = os.environ.get("PERPLEXITY_PRESET", "").strip()
+    if preset:
+        return preset
+    model = os.environ.get("PERPLEXITY_MODEL", "").strip()
+    if model:
+        return _SONAR_PRESETS.get(model, model)
+    return _DEFAULT_PRESET
+
+
+def _await_agent_response(
+    http: HTTPClient,
+    created: Mapping[str, Any],
+    headers: Mapping[str, str],
+    *,
+    timeout: float,
+    max_wait: float,
+    poll_interval: float,
+) -> Mapping[str, Any]:
+    status = str(created.get("status") or "")
+    if status in ("", "completed") and _extract_agent_output_text(created):
+        return created
+    if status in _TERMINAL_AGENT_STATUSES and status != "completed":
+        raise ResearchAgentError(
+            f"Perplexity agent run ended with status {status}: "
+            f"{_agent_error_detail(created)}"
+        )
+
+    response_id = created.get("id")
+    if not isinstance(response_id, str) or not response_id:
+        if _extract_agent_output_text(created):
+            return created
+        raise ResearchAgentError("Perplexity agent response missing id")
+
+    deadline = time.monotonic() + max_wait
+    current: Mapping[str, Any] = created
+    while time.monotonic() < deadline:
+        status = str(current.get("status") or "")
+        if status in _TERMINAL_AGENT_STATUSES:
+            break
+        time.sleep(poll_interval)
+        current = _retry(
+            lambda: http.get_json(
+                f"{_AGENT_URL}/{response_id}",
+                headers,
+                timeout,
+            )
+        )
+
+    status = str(current.get("status") or "")
+    if status != "completed":
+        detail = status or "timeout"
+        raise ResearchAgentError(
+            f"Perplexity agent run ended with status {detail}: "
+            f"{_agent_error_detail(current)}"
+        )
+    return current
+
+
+def _agent_error_detail(response: Mapping[str, Any]) -> str:
+    error = response.get("error")
+    if error is None:
+        error = response.get("error_message")
+    if isinstance(error, dict):
+        message = error.get("message")
+        return str(message or error)
+    if error:
+        return str(error)
+    return "unknown error"
+
+
+def _extract_agent_output_text(response: Mapping[str, Any]) -> str:
+    output_text = response.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    chunks: list[str] = []
+    output = response.get("output")
+    if isinstance(output, list):
+        for item in output:
+            if not isinstance(item, dict) or item.get("type") != "message":
+                continue
+            content = item.get("content")
+            if isinstance(content, str) and content.strip():
+                chunks.append(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    text = part.get("text")
+                    if isinstance(text, str) and text.strip():
+                        chunks.append(text)
+    if chunks:
+        return "\n".join(chunks)
+
+    try:
+        return _extract_message_content(response)
+    except ResearchAgentError:
+        return ""
+
+
 def _extract_message_content(response: Mapping[str, Any]) -> str:
     choices = response.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -283,19 +469,33 @@ def _extract_message_content(response: Mapping[str, Any]) -> str:
 
 
 def _parse_perplexity_content(content: str) -> dict[str, Any]:
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError:
-        parsed = {}
-
-    if not isinstance(parsed, dict):
-        parsed = {}
-
+    parsed = _extract_json_object(content)
     return {
         "facts": _list_of_dicts(parsed.get("facts")),
         "tools_mentioned": _list_of_dicts(parsed.get("tools_mentioned")),
         "faq_seeds": _list_of_strings(parsed.get("faq_seeds")),
     }
+
+
+def _extract_json_object(content: str) -> dict[str, Any]:
+    text = content.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end <= start:
+            return {}
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return parsed
 
 
 def _list_of_dicts(value: Any) -> list[dict[str, Any]]:

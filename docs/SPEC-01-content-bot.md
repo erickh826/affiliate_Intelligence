@@ -66,19 +66,16 @@ For each keyword, Firecrawl scrapes top 5 organic results:
 
 ### 4.2 Perplexity API Call
 
+Sonar Chat Completions (`/chat/completions`, including `sonar-deep-research`) retired on 2026-09-27. Research uses the Agent API replacement for Sonar Deep Research.
+
 ```python
-messages = [
-    {"role": "system", "content": "Extract factual data only. No opinions."},
-    {"role": "user", "content": 
-        f"Research '{keyword}':\n"
-        "1. Top 5 tools with pricing\n"
-        "2. Market statistics with sources\n"
-        "3. Common user complaints\n"
-        "4. Expert recommendations"
-    }
-]
-# model: llama-3.1-sonar-large-128k-online
+# POST https://api.perplexity.ai/v1/agent
+# preset: high   # override with PERPLEXITY_PRESET
+# background: true, then poll GET /v1/agent/{id} until status=completed
+# response_format: json_schema {facts, tools_mentioned, faq_seeds}
 ```
+
+`PERPLEXITY_MODEL=sonar-deep-research` still maps to preset `high`.
 
 ### 4.3 Research Bundle Schema
 
@@ -144,7 +141,7 @@ user_prompt = (
     f"Facts to include: {section_facts}\n"
     "Target: 300–400 words. Include ≥1 pricing data point."
 )
-# model: claude-3-5-haiku
+# model: claude-haiku-4-5-20251001
 ```
 
 E-E-A-T injection rules per intent:
@@ -246,11 +243,11 @@ Triggered when `status == "needs_rewrite"` (set by SPEC-02 GSC feedback loop via
 
 | Stage | Model | Reason |
 |---|---|---|
-| Research | `llama-3.1-sonar-large-128k-online` (Perplexity) | Real-time web access |
-| Outline | `gpt-4o-mini` | Fast, cheap, sufficient |
-| Section writing | `claude-3-5-haiku` | Best quality/cost for prose |
-| Quality gate | `gpt-4o-mini` | Classifier task |
-| Fallback (Anthropic down) | `gpt-4o` | Same quality, higher cost |
+| Research | Perplexity Agent API preset `high` | Replaces retired `sonar-deep-research`; real-time web access |
+| Outline | `gpt-4o-mini` (`OPENAI_MODEL_OUTLINE`) | Fast, cheap, sufficient |
+| Section writing | `claude-haiku-4-5-20251001` (`ANTHROPIC_MODEL_WRITING`) | Replaces retired `claude-3-5-haiku-20241022` |
+| Quality gate | deterministic checks in `quality_gate.py` | No model call |
+| Fallback (Anthropic down) | `gpt-4o` (`OPENAI_MODEL_FALLBACK`) | Same quality, higher cost |
 
 ---
 
@@ -276,6 +273,10 @@ ANTHROPIC_API_KEY=
 PERPLEXITY_API_KEY=
 FIRECRAWL_API_KEY=
 VERCEL_DEPLOY_HOOK_URL=
+PERPLEXITY_PRESET=high
+OPENAI_MODEL_OUTLINE=gpt-4o-mini
+ANTHROPIC_MODEL_WRITING=claude-haiku-4-5-20251001
+OPENAI_MODEL_FALLBACK=gpt-4o
 ```
 
 ---

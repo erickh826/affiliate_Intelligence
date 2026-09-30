@@ -82,7 +82,7 @@
 3. generation_agent.py
    → generate_outline(research_bundle)  → gpt-4o-mini
    → validate against outline_schema.json
-   → write_sections(outline)            → claude-3-5-haiku (3 concurrent)
+   → write_sections(outline)            → claude-haiku-4-5 (3 concurrent)
 
 4. quality_gate.py
    → Check: word count, uniqueness, banned phrases, keyword in H1, FAQ count
@@ -171,7 +171,7 @@
 | Service | Purpose | Spec | Cost |
 |---|---|---|---|
 | OpenAI API | Outline + QA | SPEC-01 | ~$0.003/article |
-| Anthropic API | Section writing | SPEC-01 | ~$0.018/article |
+| Anthropic API | Section writing (`claude-haiku-4-5`) | SPEC-01 | ~$0.018/article |
 | Perplexity API | Real-time research | SPEC-01 | ~$0.003/article |
 | Firecrawl | SERP scraping | SPEC-01 | Free tier / $0.001 |
 | Vercel | Hosting + CDN | SPEC-02 | Free tier |
