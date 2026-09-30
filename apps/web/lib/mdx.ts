@@ -41,32 +41,34 @@ export interface FAQData {
 
 const CONTENT_PATH = path.join(process.cwd(), 'content');
 const SKIP_CONTENT_DIRS = new Set(['faq']);
+const UNRESOLVED_LINK_RE = /\[([^\]]+)\]\(\{\{LINK_[A-Z0-9_]+\}\}\)/g;
+
+export function neutralizeUnresolvedLinks(content: string): string {
+  return content.replace(UNRESOLVED_LINK_RE, '$1');
+}
+
+function headingId(text: string, seen: Map<string, number>): string {
+  const base = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  const count = (seen.get(base) ?? 0) + 1;
+  seen.set(base, count);
+  return count === 1 ? base : `${base}-${count}`;
+}
 
 export function getHeadings(content: string): Heading[] {
   const headings: Heading[] = [];
+  const seen = new Map<string, number>();
   for (const line of content.split('\n')) {
     const h2 = line.match(/^## (.+)/);
     const h3 = line.match(/^### (.+)/);
     if (h2) {
       const text = h2[1].trim();
-      headings.push({
-        id: text
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, ''),
-        text,
-        level: 2,
-      });
+      headings.push({ id: headingId(text, seen), text, level: 2 });
     } else if (h3) {
       const text = h3[1].trim();
-      headings.push({
-        id: text
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, ''),
-        text,
-        level: 3,
-      });
+      headings.push({ id: headingId(text, seen), text, level: 3 });
     }
   }
   return headings;
@@ -91,7 +93,8 @@ export async function getMDXDataBySlug(
   const filePath = path.join(CONTENT_PATH, category, `${slug}.mdx`);
   if (!fs.existsSync(filePath)) return null;
   const fileContent = fs.readFileSync(filePath, 'utf8');
-  const { data, content } = matter(fileContent);
+  const { data, content: rawContent } = matter(fileContent);
+  const content = neutralizeUnresolvedLinks(rawContent);
 
   return {
     frontmatter: data as Frontmatter,
