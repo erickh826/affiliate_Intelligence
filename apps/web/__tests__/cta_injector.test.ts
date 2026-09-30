@@ -32,11 +32,9 @@ const mapUnknownPartner: AffiliateMap = {
 };
 
 describe('getAffiliateMap', () => {
-  it('returns parsed object for existing slug', () => {
+  it('returns null when the slug has no published affiliate map', () => {
     const map = getAffiliateMap('best-ai-writing-tools-2026');
-    expect(map).not.toBeNull();
-    expect(map?.slug).toBe('best-ai-writing-tools-2026');
-    expect(map?.primary_partner).toBe('jasper');
+    expect(map).toBeNull();
   });
 
   it('returns null for missing slug', () => {
@@ -63,11 +61,9 @@ describe('resolveCTAUrl', () => {
 });
 
 describe('resolveCTAConfig', () => {
-  it('returns config with href and partner for known slug', () => {
+  it('returns null when the slug has no published affiliate map', () => {
     const config = resolveCTAConfig('best-ai-writing-tools-2026');
-    expect(config).not.toBeNull();
-    expect(config?.href).toBeTruthy();
-    expect(config?.partner).toBe('jasper');
+    expect(config).toBeNull();
   });
 
   it('returns null for missing slug', () => {

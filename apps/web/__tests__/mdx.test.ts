@@ -9,31 +9,26 @@ import {
 } from '../lib/mdx';
 
 describe('mdx loader', () => {
-  it('finds sample article in getAllArticles', async () => {
+  it('does not publish the removed dry-run stub', async () => {
     const articles = await getAllArticles();
     expect(
       articles.some(
         (article) => article.frontmatter.slug === 'best-ai-writing-tools-2026',
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('parses frontmatter for sample article', async () => {
+  it('returns null for a slug with no published article', async () => {
     const article = await getMDXDataBySlug(
       'ai-writing',
       'best-ai-writing-tools-2026',
     );
-    expect(article).not.toBeNull();
-    expect(article?.frontmatter.title).toContain('Best');
-    expect(article?.frontmatter.category).toBe('ai-writing');
-    expect(article?.frontmatter.schema_type).toBe('Article');
-    expect(article?.content).toContain('#');
+    expect(article).toBeNull();
   });
 
-  it('loads FAQ json for sample slug', async () => {
+  it('returns null when no FAQ file is published', async () => {
     const faq = await getFAQBySlug('best-ai-writing-tools-2026');
-    expect(faq).not.toBeNull();
-    expect(faq?.faqs.length).toBeGreaterThan(0);
+    expect(faq).toBeNull();
   });
 
   it('excludes faq directory from article scan', async () => {
@@ -113,15 +108,12 @@ describe('splitAtH2', () => {
     expect(parts.slice(2).length).toBeGreaterThan(1);
   });
 
-  it('sample article has 3+ H2s, confirming inline CTA renders', async () => {
-    const article = await getMDXDataBySlug(
-      'ai-writing',
-      'best-ai-writing-tools-2026',
-    );
-    expect(article).not.toBeNull();
-    expect(article!.contentParts.slice(2).length).toBeGreaterThan(1);
-    expect(
-      article!.headings.filter((h) => h.level === 2).length,
-    ).toBeGreaterThanOrEqual(3);
+  it('three H2s leave a trailing part so the inline CTA can render', () => {
+    const content =
+      'intro\n\n## H2 One\n\ntext\n\n## H2 Two\n\ntext\n\n## H2 Three\n\ntext';
+    const parts = splitAtH2(content);
+    const headings = getHeadings(content);
+    expect(parts.slice(2).length).toBeGreaterThan(1);
+    expect(headings.filter((heading) => heading.level === 2).length).toBe(3);
   });
 });

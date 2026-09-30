@@ -28,7 +28,7 @@ jobs:
       - name: Detect content changes
         id: content_changes
         run: |
-          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/
+          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/ data/keywords.db
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
