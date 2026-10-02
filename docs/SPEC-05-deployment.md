@@ -1,6 +1,6 @@
 # SPEC-05 — Deployment & Infrastructure
 
-**Version:** 1.0 | **Updated:** 2026-06-14  
+**Version:** 1.0 | **Updated:** 2026-09-30  
 **Related:** [SPEC-02](./SPEC-02-web-system.md) · [SPEC-01](./SPEC-01-content-bot.md) · [SPEC-03](./SPEC-03-monetisation.md)
 
 ---
@@ -173,10 +173,14 @@ jobs:
 
 ### 5.2 Bot cron — `bot-cron.yml`
 
-Runs daily at 02:00 UTC. Generates articles and commits MDX to repo.
+Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a manual run. The workflow commits new MDX, FAQ JSON, affiliate maps, and `data/keywords.db`. It does not commit deletions under those paths, so a run cannot remove an article already on `main`.
+
+GitHub turns scheduled workflows off on a public repository after 60 days without repository activity (`disabled_inactivity`). The `cron` key in the file does not fire while that state is set. Re-enable from the Actions tab or with `gh workflow enable bot-cron.yml`.
+
+If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article generation errors are already handled inside the bot (that keyword is marked `failed`, the batch continues, exit code stays 0). `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
 
 ```yaml
-name: Bot — Daily Article Generation
+name: Bot - Daily Article Generation
 
 on:
   schedule:
@@ -185,6 +189,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: bot-daily-generation
+  cancel-in-progress: false
 
 env:
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -195,24 +203,70 @@ env:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Require GitHub Actions API secrets
+        run: |
+          missing=0
+          for name in OPENAI_API_KEY ANTHROPIC_API_KEY PERPLEXITY_API_KEY FIRECRAWL_API_KEY; do
+            value="$(printenv "$name" || true)"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing Actions secret::$name is empty. Cursor Runtime Secrets are not injected into GitHub Actions."
+              missing=1
+            fi
+          done
+          unset value
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
       - run: pip install -r apps/bot/requirements.txt
       - name: Run bot
         run: python apps/bot/main.py --batch 5
+      - name: Checkpoint keyword database
+        run: |
+          python - <<'PY'
+          import sqlite3
+          conn = sqlite3.connect("data/keywords.db")
+          conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+          conn.close()
+          PY
+          rm -f data/keywords.db-wal data/keywords.db-shm
+      - name: Detect content changes
+        id: content_changes
+        run: |
+          git add -- apps/web/content apps/web/content/faq monetisation/affiliate_map data/keywords.db
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            git restore --staged -- "$path"
+            echo "left existing file in place: $path"
+          done < <(git diff --cached --diff-filter=D --name-only)
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Commit new articles
+        if: steps.content_changes.outputs.changed == 'true'
         run: |
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/ data/keywords.db
-          git diff --cached --quiet || git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
-          git push
+          git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
+          git push origin HEAD:main
       - name: Trigger Vercel deploy
-        if: success()
-        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+        if: success() && steps.content_changes.outputs.changed == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL is unset. A push to main still deploys when the Vercel Git integration is connected."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST "$VERCEL_DEPLOY_HOOK_URL"
 ```
 
 ### 5.3 GSC feedback cron — `gsc-feedback.yml`
@@ -253,16 +307,16 @@ jobs:
 
 ## 6. GitHub Secrets Required
 
-Set in GitHub → repo → Settings → Secrets → Actions:
+Set these in GitHub → repo → Settings → Secrets and variables → Actions. Cursor Runtime Secrets (used by Cloud Agents) are a different store. Actions cannot read them, and this spec does not list secret values.
 
-| Secret | Used by | When |
-|--------|---------|------|
-| `OPENAI_API_KEY` | bot-cron.yml | Phase 1+ |
-| `ANTHROPIC_API_KEY` | bot-cron.yml | Phase 1+ |
-| `PERPLEXITY_API_KEY` | bot-cron.yml | Phase 1+ |
-| `FIRECRAWL_API_KEY` | bot-cron.yml | Phase 1+ |
-| `VERCEL_DEPLOY_HOOK_URL` | bot-cron.yml | Phase 2+ |
-| `GSC_SERVICE_ACCOUNT_JSON` | gsc-feedback.yml | Phase 4 |
+| Secret | Used by | Required for bot cron |
+|--------|---------|------------------------|
+| `OPENAI_API_KEY` | bot-cron.yml | Yes |
+| `ANTHROPIC_API_KEY` | bot-cron.yml | Yes |
+| `PERPLEXITY_API_KEY` | bot-cron.yml | Yes |
+| `FIRECRAWL_API_KEY` | bot-cron.yml | Yes |
+| `VERCEL_DEPLOY_HOOK_URL` | bot-cron.yml | No. Empty skips the hook step. Vercel Git integration still deploys pushes to `main`. |
+| `GSC_SERVICE_ACCOUNT_JSON` | gsc-feedback.yml | No. Phase 4 only. |
 
 ---
 
@@ -282,8 +336,8 @@ Run through this after M3 is complete:
 - [ ] Article page loads with CTA and JSON-LD in source
 
 ### Bot pipeline
-- [ ] All 4 API keys added to GitHub Secrets
-- [ ] `VERCEL_DEPLOY_HOOK_URL` added to GitHub Secrets
+- [ ] All 4 API keys added as GitHub Actions secrets (Cursor Runtime Secrets are not visible to this workflow)
+- [ ] `VERCEL_DEPLOY_HOOK_URL` added as a GitHub Actions secret (optional; a push to `main` still deploys via the Vercel Git integration)
 - [ ] `bot-cron.yml` committed to `.github/workflows/`
 - [ ] Manual trigger (`workflow_dispatch`) tested once — confirms articles generate and commit
 - [ ] Vercel rebuild triggered after bot commit

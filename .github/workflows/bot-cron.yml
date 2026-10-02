@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: bot-daily-generation
+  cancel-in-progress: false
+
 env:
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -17,18 +21,47 @@ env:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Require GitHub Actions API secrets
+        run: |
+          missing=0
+          for name in OPENAI_API_KEY ANTHROPIC_API_KEY PERPLEXITY_API_KEY FIRECRAWL_API_KEY; do
+            value="$(printenv "$name" || true)"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing Actions secret::$name is empty. Cursor Runtime Secrets are not injected into GitHub Actions."
+              missing=1
+            fi
+          done
+          unset value
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
       - run: pip install -r apps/bot/requirements.txt
       - name: Run bot
         run: python apps/bot/main.py --batch 5
+      - name: Checkpoint keyword database
+        run: |
+          python - <<'PY'
+          import sqlite3
+          conn = sqlite3.connect("data/keywords.db")
+          conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+          conn.close()
+          PY
+          rm -f data/keywords.db-wal data/keywords.db-shm
       - name: Detect content changes
         id: content_changes
         run: |
-          git add apps/web/content/ apps/web/content/faq/ monetisation/affiliate_map/ data/keywords.db
+          git add -- apps/web/content apps/web/content/faq monetisation/affiliate_map data/keywords.db
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            git restore --staged -- "$path"
+            echo "left existing file in place: $path"
+          done < <(git diff --cached --diff-filter=D --name-only)
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -40,7 +73,15 @@ jobs:
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
           git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
-          git push
+          git push origin HEAD:main
       - name: Trigger Vercel deploy
         if: success() && steps.content_changes.outputs.changed == 'true'
-        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+        continue-on-error: true
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL is unset. A push to main still deploys when the Vercel Git integration is connected."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST "$VERCEL_DEPLOY_HOOK_URL"
