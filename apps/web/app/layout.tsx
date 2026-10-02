@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import GoogleAnalytics from '../components/GoogleAnalytics';
 import ThemeToggle from '../components/ThemeToggle';
-import { getSiteName } from '../lib/site';
+import { getSiteName, getSiteUrl } from '../lib/site';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
-  ),
+  metadataBase: new URL(getSiteUrl()),
   title: getSiteName(),
   description: 'Programmatic SEO content system',
   alternates: {
@@ -85,6 +84,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        <GoogleAnalytics />
       </body>
     </html>
   );

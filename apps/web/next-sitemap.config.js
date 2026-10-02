@@ -1,7 +1,21 @@
+const path = require('path');
+const { listPublishedRoutes, resolveSiteUrl } = require('./lib/sitemap-source');
+
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+  siteUrl: resolveSiteUrl(),
   generateRobotsTxt: true,
+  trailingSlash: false,
   exclude: ['/api/*'],
   outDir: 'public',
+  robotsTxtOptions: {
+    policies: [
+      {
+        userAgent: '*',
+        allow: '/',
+      },
+    ],
+  },
+  additionalPaths: async () =>
+    listPublishedRoutes(path.join(__dirname, 'content')),
 };
