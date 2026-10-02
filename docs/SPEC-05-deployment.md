@@ -84,7 +84,7 @@ Set `VERCEL_DEPLOY_HOOK_URL` in GitHub Secrets (see §5).
 "postbuild": "next-sitemap"
 ```
 
-After deploy, verify at `https://yourdomain.com/sitemap.xml` and `https://yourdomain.com/robots.txt`.
+`siteUrl` is `NEXT_PUBLIC_SITE_URL` (fallback: `https://$VERCEL_PROJECT_PRODUCTION_URL`). The generated sitemap includes static routes and every published MDX article. After deploy, verify at `https://yourdomain.com/sitemap.xml` and `https://yourdomain.com/robots.txt`. GA4 loads only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set.
 
 ---
 

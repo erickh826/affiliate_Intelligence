@@ -113,8 +113,8 @@ Articles with `[slug].faq.json` inject into `<head>`:
 
 | Requirement | Implementation |
 |---|---|
-| Sitemap | `/sitemap.xml` via `next-sitemap` |
-| robots.txt | Allows all crawlers, points to sitemap |
+| Sitemap | `/sitemap.xml` via `next-sitemap`. Includes static routes plus one URL per published MDX article and its category index. `siteUrl` is `NEXT_PUBLIC_SITE_URL`, then `https://$VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`. |
+| robots.txt | Allows all crawlers and points `Sitemap:` at `{siteUrl}/sitemap.xml` |
 | Canonical | Exact page URL on all pages |
 | Structured data | FAQPage, BreadcrumbList, Article schema |
 | Open Graph | `og:title`, `og:description`, `og:image`, `og:type=article` |

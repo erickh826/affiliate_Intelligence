@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Host
-Host: https://www.shadona.co
+Host: https://affiliate-intelligence-teal.vercel.app
 
 # Sitemaps
-Sitemap: https://www.shadona.co/sitemap.xml
+Sitemap: https://affiliate-intelligence-teal.vercel.app/sitemap.xml

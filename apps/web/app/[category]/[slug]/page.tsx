@@ -10,7 +10,7 @@ import {
   getFAQBySlug,
   getMDXDataBySlug,
 } from '../../../lib/mdx';
-import { getSiteName } from '../../../lib/site';
+import { getSiteName, getSiteUrl } from '../../../lib/site';
 import { resolveCTAConfig } from '../../../lib/cta_injector';
 import {
   buildArticleSchema,
@@ -23,7 +23,7 @@ import NewsletterCTA from '../../../components/NewsletterCTA';
 import TableOfContents from '../../../components/TableOfContents';
 import YouTubeEmbed from '../../../components/YouTubeEmbed';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = getSiteUrl();
 const mdxRemoteOptions = {
   mdxOptions: {
     remarkPlugins: [remarkGfm],

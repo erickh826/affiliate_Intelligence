@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getAllArticles } from '../../lib/mdx';
-import { getSiteName } from '../../lib/site';
+import { getSiteName, getSiteUrl } from '../../lib/site';
 import ArticleCard from '../../components/ArticleCard';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = getSiteUrl();
 
 const PAGE_SIZE = 12;
 
