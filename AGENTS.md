@@ -100,5 +100,5 @@ Two independent apps: `apps/bot` (Python 3.11+ CLI pipeline) and `apps/web` (Nex
 
 ### Web app (`apps/web/`)
 - Dev server: `npm run dev --prefix apps/web` on port **3000**. Standard scripts (`dev`/`build`/`start`/`lint`/`test`) are in `apps/web/package.json`.
-- `npm run build` runs a `next-sitemap` postbuild that rewrites tracked files under `apps/web/public/` (`sitemap*.xml`, `robots.txt`); revert these after a local build unless intentionally updating them.
+- `npm run build` runs a `next-sitemap` `postbuild` that writes gitignored `apps/web/public/sitemap*.xml` and `apps/web/public/robots.txt`. Leave those files untracked. Vercel copies `public/` at the start of `next build` and deploys that copy when the path already exists, so a committed sitemap freezes the host from that file.
 - The web app reads bot-generated MDX from `apps/web/content/` at build time; there is no network call between the two apps.

@@ -1,9 +1,0 @@
-# *
-User-agent: *
-Allow: /
-
-# Host
-Host: https://affiliate-intelligence-teal.vercel.app
-
-# Sitemaps
-Sitemap: https://affiliate-intelligence-teal.vercel.app/sitemap.xml

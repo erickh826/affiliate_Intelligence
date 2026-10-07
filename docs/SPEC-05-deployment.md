@@ -1,6 +1,6 @@
 # SPEC-05 — Deployment & Infrastructure
 
-**Version:** 1.0 | **Updated:** 2026-09-30  
+**Version:** 1.0 | **Updated:** 2026-10-07  
 **Related:** [SPEC-02](./SPEC-02-web-system.md) · [SPEC-01](./SPEC-01-content-bot.md) · [SPEC-03](./SPEC-03-monetisation.md)
 
 ---
@@ -37,7 +37,7 @@ Before deployment:
 2. Select this monorepo
 3. **Root Directory:** set to `apps/web` (critical — do not leave blank)
 4. Framework: Next.js (auto-detected)
-5. Build command: `npm run build` (default)
+5. Build command: `npm run build`, pinned in `apps/web/vercel.json` (this runs the `postbuild` sitemap step)
 6. Output: `.next` (default)
 7. Click **Deploy**
 
@@ -54,6 +54,8 @@ Set in Vercel project → Settings → Environment Variables:
 | `NEXT_PUBLIC_FORMSPREE_ID` | `abcdefgh` | M3 (contact form) |
 
 Set all for `Production` + `Preview` environments.
+
+Production for this site: `NEXT_PUBLIC_SITE_URL=https://www.shadona.co`. A new Production deployment is required after the variable is saved; the value is read when `next-sitemap` runs.
 
 ### 3.3 Custom domain
 
@@ -78,13 +80,18 @@ Set `VERCEL_DEPLOY_HOOK_URL` in GitHub Secrets (see §5).
 
 ### 3.5 `next-sitemap` on deploy
 
-`postbuild` script in `apps/web/package.json` runs automatically:
+`apps/web/package.json` generates sitemap and robots during the build:
 
 ```json
+"build": "next build",
 "postbuild": "next-sitemap"
 ```
 
-`siteUrl` is `NEXT_PUBLIC_SITE_URL` (fallback: `https://$VERCEL_PROJECT_PRODUCTION_URL`). The generated sitemap includes static routes and every published MDX article. After deploy, verify at `https://yourdomain.com/sitemap.xml` and `https://yourdomain.com/robots.txt`. GA4 loads only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set.
+`apps/web/vercel.json` sets the Vercel build command to `npm run build` when the project Root Directory is `apps/web`, so npm runs that `postbuild` hook. `vercel.json` overrides a dashboard Build Command of `next build`, which would skip the hook.
+
+`public/sitemap.xml`, `public/sitemap-*.xml`, and `public/robots.txt` are gitignored build output. Leave them out of git. Next.js copies `public/` at the start of `next build`, and the Vercel adapter keeps that copy when the same path is already present. A committed sitemap is what production serves, including after `postbuild` rewrites `public/`.
+
+`siteUrl` is `NEXT_PUBLIC_SITE_URL`, then `https://$VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`. The generated sitemap includes static routes and every published MDX article. After a Production deploy with `NEXT_PUBLIC_SITE_URL=https://www.shadona.co`, verify `https://www.shadona.co/sitemap.xml`, `https://www.shadona.co/sitemap-0.xml`, and `https://www.shadona.co/robots.txt`. GA4 loads only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set.
 
 ---
 
