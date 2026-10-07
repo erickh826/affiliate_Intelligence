@@ -10,6 +10,7 @@ from typing import Any
 from db_setup import DB_PATH
 from generation_agent import (
     LLMAPIError,
+    ProviderOutageError,
     ValidationError,
     generate_outline,
     write_sections,
@@ -30,9 +31,42 @@ _DEFAULT_AFFILIATE_MAP_ROOT = _PROJECT_ROOT / "monetisation" / "affiliate_map"
 
 _LOG = logging.getLogger(__name__)
 
+_RETRYABLE_MARKERS = (
+    "timeout",
+    "timed out",
+    "429",
+    "rate limit",
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "credit balance",
+    "no credits remaining",
+    "purchase credits",
+    "overloaded",
+    "connection",
+    "temporarily",
+    "502",
+    "503",
+    "504",
+)
+
 
 def _configure_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+
+def _is_retryable_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _RETRYABLE_MARKERS)
+
+
+def _release_keyword(km: KeywordManager, row: dict[str, Any]) -> None:
+    slug = str(row.get("slug") or "").strip()
+    if not slug:
+        return
+    status = str(row.get("status") or "pending")
+    if status not in {"pending", "needs_rewrite"}:
+        status = "pending"
+    km.update_status(slug, status)
 
 
 def assemble_article(
@@ -111,13 +145,43 @@ async def _process_one(
             content_root=content_root,
             affiliate_map_root=affiliate_map_root,
         )
+    except ProviderOutageError as exc:
+        _release_keyword(km, row)
+        _LOG.info(
+            json.dumps({"event": "provider_outage", "slug": slug, "error": str(exc)})
+        )
+        return "outage"
     except (ResearchAgentError, LLMAPIError, ValidationError, MDXWriterError) as exc:
+        if _is_retryable_error(exc):
+            _release_keyword(km, row)
+            _LOG.info(
+                json.dumps(
+                    {
+                        "event": "article_retryable",
+                        "slug": slug,
+                        "error": str(exc),
+                    }
+                )
+            )
+            return "retryable"
         km.update_status(slug, "failed")
         _LOG.info(
             json.dumps({"event": "article_error", "slug": slug, "error": str(exc)})
         )
         return "failed"
     except Exception as exc:  # noqa: BLE001
+        if _is_retryable_error(exc):
+            _release_keyword(km, row)
+            _LOG.info(
+                json.dumps(
+                    {
+                        "event": "article_retryable",
+                        "slug": slug,
+                        "error": f"unexpected: {exc}",
+                    }
+                )
+            )
+            return "retryable"
         km.update_status(slug, "failed")
         _LOG.info(
             json.dumps(
@@ -174,7 +238,7 @@ async def _run_batch(
 ) -> list[str]:
     articles_written: list[dict[str, Any]] = []
     results = []
-    for row in rows:
+    for index, row in enumerate(rows):
         outcome = await _process_one(
             row,
             dry_run=dry_run,
@@ -185,6 +249,21 @@ async def _run_batch(
             km=km,
         )
         results.append(outcome)
+        if outcome == "outage":
+            for remaining in rows[index + 1 :]:
+                _release_keyword(km, remaining)
+                results.append("released")
+                _LOG.info(
+                    json.dumps(
+                        {
+                            "event": "keyword_released",
+                            "slug": remaining.get("slug"),
+                            "status": remaining.get("status"),
+                            "reason": "provider_outage",
+                        }
+                    )
+                )
+            break
     return results
 
 
@@ -237,19 +316,27 @@ def run(
 
     succeeded = sum(1 for o in outcomes if o == "success")
     failed = sum(1 for o in outcomes if o == "failed")
+    retryable = sum(1 for o in outcomes if o == "retryable")
+    outages = sum(1 for o in outcomes if o == "outage")
+    exit_code = 0
+    if succeeded == 0 and (outages or (retryable and not failed)):
+        exit_code = 2
     _LOG.info(
         json.dumps(
             {
                 "event": "batch_finished",
                 "batch": batch,
                 "dry_run": dry_run,
-                "selected": len(outcomes),
+                "selected": len(rows),
                 "succeeded": succeeded,
                 "failed": failed,
+                "retryable": retryable,
+                "outages": outages,
+                "exit_code": exit_code,
             }
         )
     )
-    return 0
+    return exit_code
 
 
 def build_parser() -> argparse.ArgumentParser:

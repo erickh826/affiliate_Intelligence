@@ -184,7 +184,7 @@ Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a
 
 GitHub turns scheduled workflows off on a public repository after 60 days without repository activity (`disabled_inactivity`). The `cron` key in the file does not fire while that state is set. Re-enable from the Actions tab or with `gh workflow enable bot-cron.yml`.
 
-If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article generation errors are already handled inside the bot (that keyword is marked `failed`, the batch continues, exit code stays 0). `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
+If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures are handled inside the bot (that keyword is marked `failed`, the batch continues, exit code stays 0). Provider outages are different. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`). If both fail because of quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`, writes no MDX, and exits 2. Later commit steps are skipped, so a drained balance cannot land `feat(s01): add batch articles` with only `data/keywords.db` changed. A run that writes MDX commits those files together with the database. A run that only records terminal keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
 
 ```yaml
 name: Bot - Daily Article Generation
@@ -253,18 +253,28 @@ jobs:
           done < <(git diff --cached --diff-filter=D --name-only)
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "articles=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            if git diff --cached --name-only -- apps/web/content monetisation/affiliate_map | grep -q .; then
+              echo "articles=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "articles=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - name: Commit new articles
         if: steps.content_changes.outputs.changed == 'true'
         run: |
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
-          git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
+          if [ "${{ steps.content_changes.outputs.articles }}" = "true" ]; then
+            git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
+          else
+            git commit -m "chore(s01): record keyword status [$(date +%Y-%m-%d)]"
+          fi
           git push origin HEAD:main
       - name: Trigger Vercel deploy
-        if: success() && steps.content_changes.outputs.changed == 'true'
+        if: success() && steps.content_changes.outputs.articles == 'true'
         continue-on-error: true
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}

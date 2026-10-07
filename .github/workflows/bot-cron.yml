@@ -64,18 +64,28 @@ jobs:
           done < <(git diff --cached --diff-filter=D --name-only)
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "articles=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            if git diff --cached --name-only -- apps/web/content monetisation/affiliate_map | grep -q .; then
+              echo "articles=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "articles=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - name: Commit new articles
         if: steps.content_changes.outputs.changed == 'true'
         run: |
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
-          git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
+          if [ "${{ steps.content_changes.outputs.articles }}" = "true" ]; then
+            git commit -m "feat(s01): add batch articles [$(date +%Y-%m-%d)]"
+          else
+            git commit -m "chore(s01): record keyword status [$(date +%Y-%m-%d)]"
+          fi
           git push origin HEAD:main
       - name: Trigger Vercel deploy
-        if: success() && steps.content_changes.outputs.changed == 'true'
+        if: success() && steps.content_changes.outputs.articles == 'true'
         continue-on-error: true
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}

@@ -117,9 +117,12 @@ user_prompt = (
     "- Comparison table columns (if intent=comparison)"
 )
 # model: gpt-4o-mini
+# fallback: claude-haiku-4-5-20251001 (ANTHROPIC_MODEL_WRITING) when OpenAI fails
 ```
 
 Output validated against `outline_schema.json` before proceeding.
+
+If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. No extra secret is required. When both outline providers fail because of quota or billing, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2 so the cron job does not commit a database-only "articles" change. Transient timeouts stay retryable the same way. Quality-gate FAIL still sets `status=failed` and does not use this path.
 
 ---
 
@@ -245,6 +248,7 @@ Triggered when `status == "needs_rewrite"` (set by SPEC-02 GSC feedback loop via
 |---|---|---|
 | Research | Perplexity Agent API preset `high` | Replaces retired `sonar-deep-research`; real-time web access |
 | Outline | `gpt-4o-mini` (`OPENAI_MODEL_OUTLINE`) | Fast, cheap, sufficient |
+| Outline fallback (OpenAI down or quota) | `claude-haiku-4-5-20251001` (`ANTHROPIC_MODEL_WRITING`) | Uses the Anthropic key already required by section writing |
 | Section writing | `claude-haiku-4-5-20251001` (`ANTHROPIC_MODEL_WRITING`) | Replaces retired `claude-3-5-haiku-20241022` |
 | Quality gate | deterministic checks in `quality_gate.py` | No model call |
 | Fallback (Anthropic down) | `gpt-4o` (`OPENAI_MODEL_FALLBACK`) | Same quality, higher cost |

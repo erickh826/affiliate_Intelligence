@@ -202,6 +202,7 @@
 | Failure | Detection | Recovery |
 |---|---|---|
 | LLM API down | HTTP 5xx / timeout | Retry 3x with backoff; fallback model per SPEC-01 §10 |
+| OpenAI outline quota exhausted | HTTP 429 `credit_balance_exhausted` | Outline falls back to Anthropic. If that fails too, restore the keyword to `pending` or `needs_rewrite`, exit 2, and do not commit an MDX-less article batch |
 | Quality gate FAIL | Automated check | Set status='failed', log reason, continue next article |
 | Vercel deploy fail | Deploy hook returns non-200 | Log error, retry once after 60s |
 | GSC API quota exceeded | 403 response | Skip feedback loop, retry next week |

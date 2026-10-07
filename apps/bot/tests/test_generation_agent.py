@@ -8,9 +8,12 @@ import pytest
 
 from generation_agent import (
     _MAX_CONCURRENCY,
+    LLMAPIError,
+    ProviderOutageError,
     _dry_run_outline,
     _dry_run_section,
     _outline_prompt,
+    _parse_json_payload,
     _section_prompt,
     _summarise_research,
     _validate_outline,
@@ -336,6 +339,50 @@ class TestGenerateOutlineLive:
             )
         assert result["h1"] == expected["h1"]
 
+    def test_falls_back_to_anthropic_when_openai_fails(self) -> None:
+        expected = _dry_run_outline("best ai tools", "comparison")
+
+        async def openai_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise LLMAPIError(
+                "Outline generation failed: Error code: 429 - credit_balance_exhausted"
+            )
+
+        with (
+            patch("generation_agent._call_outline", side_effect=openai_down),
+            patch(
+                "generation_agent._call_anthropic_outline",
+                new_callable=AsyncMock,
+                return_value=expected,
+            ) as anthropic_mock,
+        ):
+            result = asyncio.run(
+                generate_outline(
+                    "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=False
+                )
+            )
+
+        anthropic_mock.assert_awaited()
+        assert result["h1"] == expected["h1"]
+
+    def test_outage_when_both_outline_providers_lack_credits(self) -> None:
+        async def openai_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise LLMAPIError("Outline generation failed: credit_balance_exhausted")
+
+        async def anthropic_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise LLMAPIError("Anthropic outline generation failed: billing")
+
+        with (
+            patch("generation_agent._call_outline", side_effect=openai_down),
+            patch(
+                "generation_agent._call_anthropic_outline",
+                side_effect=anthropic_down,
+            ),
+            pytest.raises(ProviderOutageError),
+        ):
+            asyncio.run(
+                generate_outline("kw", "comparison", _MOCK_RESEARCH, dry_run=False)
+            )
+
     def test_validates_outline_from_api(self) -> None:
         from generation_agent import ValidationError
 
@@ -349,6 +396,16 @@ class TestGenerateOutlineLive:
             pytest.raises(ValidationError),
         ):
             asyncio.run(generate_outline("kw", "comparison", {}, dry_run=False))
+
+
+class TestParseJsonPayload:
+    def test_reads_fenced_json(self) -> None:
+        payload = _parse_json_payload('```json\n{"h1": "Best AI Tools Guide"}\n```')
+        assert payload["h1"] == "Best AI Tools Guide"
+
+    def test_reads_json_with_preamble(self) -> None:
+        payload = _parse_json_payload('Here is the outline:\n{"h1": "Guide Title"}')
+        assert payload["h1"] == "Guide Title"
 
 
 class TestWriteSectionsDryRun:
@@ -455,6 +512,29 @@ class TestWriteSectionsLive:
             )
 
         openai_mock.assert_not_called()
+
+    def test_outage_when_both_section_providers_lack_credits(self) -> None:
+        async def anthropic_down(*_a: Any, **_kw: Any) -> str:
+            raise LLMAPIError("Anthropic section generation failed: credit balance")
+
+        async def openai_down(*_a: Any, **_kw: Any) -> str:
+            raise LLMAPIError(
+                "OpenAI fallback section generation failed: credit_balance_exhausted"
+            )
+
+        with (
+            patch(
+                "generation_agent._call_anthropic_section",
+                side_effect=anthropic_down,
+            ),
+            patch("generation_agent._call_openai_section", side_effect=openai_down),
+            pytest.raises(ProviderOutageError),
+        ):
+            asyncio.run(
+                write_sections(
+                    _MOCK_OUTLINE, _MOCK_RESEARCH, "comparison", dry_run=False
+                )
+            )
 
     def test_only_first_section_receives_exact_keyword(self) -> None:
         captured: list[tuple[Any, ...]] = []
