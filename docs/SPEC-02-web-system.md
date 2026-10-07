@@ -55,6 +55,12 @@ Breadcrumb: Home > Category > Article
 [Related articles — 3 cards]
 ```
 
+### Table of contents
+
+Desktop keeps a sticky contents panel in the right column. Below the `lg` breakpoint the same panel sits above the article body, because the sidebar is hidden. The panel lists top-level sections only. Nested headings stay collapsed behind a disclosure button until expanded. Every entry is a jump link to a heading anchor, and those headings are keyboard-focusable (`tabindex="-1"`) with scroll margin so the sticky header does not cover them. The panel scrolls inside the viewport instead of stretching the full heading tree down the page.
+
+When the MDX repeats a section title on the very next heading (`## Title` followed only by blank lines and `# Title`, or the same `## Title` again), those two lines are one section. Later headings belong to that section and stay collapsed. Articles without that pattern use H2 as the top level and collapse H3.
+
 ---
 
 ## 4. Content Rendering

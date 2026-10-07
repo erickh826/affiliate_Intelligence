@@ -30,13 +30,13 @@ export const mdxComponents = {
       return null;
     }
     return (
-      <h2 {...props} className="font-display">
+      <h2 {...props} tabIndex={-1} className="scroll-mt-28 font-display">
         {children}
       </h2>
     );
   },
   h3: ({ children, ...props }: SubheadingProps) => (
-    <h3 {...props} className="font-display">
+    <h3 {...props} tabIndex={-1} className="scroll-mt-28 font-display">
       {children}
     </h3>
   ),
