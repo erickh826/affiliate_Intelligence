@@ -18,10 +18,10 @@ export default function PrivacyPolicyPage() {
       <div className="max-w-3xl space-y-8">
         <header className="space-y-3">
           <h1 className="text-4xl font-bold font-display">Privacy Policy</h1>
-          <p className="text-sm text-gray-400">Last updated: {updatedAt}</p>
+          <p className="text-sm text-secondary">Last updated: {updatedAt}</p>
         </header>
 
-        <section className="space-y-6 text-gray-300">
+        <section className="space-y-6 text-secondary">
           <p>
             Affiliate Intelligence collects limited usage data to understand how
             readers use the site and to improve editorial quality. We do not
@@ -48,7 +48,10 @@ export default function PrivacyPolicyPage() {
             </p>
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold font-display text-text">
+            <h2
+              id="cookies"
+              className="text-2xl font-bold font-display text-text"
+            >
               Cookies
             </h2>
             <p>

@@ -10,6 +10,7 @@ import {
   getFAQBySlug,
   getMDXDataBySlug,
 } from '../../../lib/mdx';
+import { formatArticleDate } from '../../../lib/blog-listing';
 import { getSiteName, getSiteUrl } from '../../../lib/site';
 import { resolveCTAConfig } from '../../../lib/cta_injector';
 import {
@@ -116,7 +117,7 @@ export default async function ArticlePage({
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
               {article.frontmatter.title}
             </h1>
-            <div className="flex flex-wrap items-center text-sm text-gray-400 gap-y-2 gap-x-4">
+            <div className="flex flex-wrap items-center text-sm text-secondary gap-y-2 gap-x-4">
               <Link
                 href="/about"
                 className="hover:text-accent transition-colors"
@@ -125,14 +126,7 @@ export default async function ArticlePage({
               </Link>
               <span className="hidden sm:inline">•</span>
               <time dateTime={article.frontmatter.published_at}>
-                {new Date(article.frontmatter.published_at).toLocaleDateString(
-                  'en-US',
-                  {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  },
-                )}
+                {formatArticleDate(article.frontmatter.published_at)}
               </time>
               {article.frontmatter.last_reviewed && (
                 <>
@@ -151,7 +145,7 @@ export default async function ArticlePage({
             <NewsletterCTA />
           )}
 
-          <div className="prose prose-invert prose-teal max-w-none">
+          <div className="prose max-w-none">
             <MDXRemote
               source={contentParts[0]}
               components={mdxComponents}
@@ -189,7 +183,7 @@ export default async function ArticlePage({
           )}
 
           {faqData && faqData.faqs.length > 0 && (
-            <section className="mt-16 border-t border-surface pt-12">
+            <section className="mt-16 border-t border-border pt-12">
               <h2 className="text-3xl font-bold mb-8 font-display">
                 Frequently Asked Questions
               </h2>
@@ -197,12 +191,12 @@ export default async function ArticlePage({
                 {faqData.faqs.map((faq, index) => (
                   <div
                     key={index}
-                    className="bg-surface p-6 rounded-lg border border-gray-800"
+                    className="bg-surface p-6 rounded-lg border border-border"
                   >
                     <h3 className="text-xl font-bold mb-2 font-display">
                       {faq.question}
                     </h3>
-                    <p className="text-gray-300">
+                    <p className="text-secondary">
                       {faq.answer || 'Answer coming soon.'}
                     </p>
                   </div>
@@ -212,7 +206,7 @@ export default async function ArticlePage({
           )}
 
           {article.frontmatter.intent === 'comparison' && (
-            <div className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur border-t border-gray-700 py-3 px-4 text-xs text-gray-400 text-center z-50">
+            <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border py-3 px-4 text-xs text-secondary text-center z-50">
               This page contains affiliate links. We may earn a commission at no
               cost to you.{' '}
               <Link href="/disclaimer" className="text-accent hover:underline">
@@ -223,7 +217,7 @@ export default async function ArticlePage({
         </div>
 
         <aside className="hidden lg:block mt-0">
-          <div className="sticky top-8 space-y-6">
+          <div className="sticky top-24 space-y-6">
             <TableOfContents headings={headings} />
           </div>
         </aside>

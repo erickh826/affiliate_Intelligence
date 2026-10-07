@@ -8,7 +8,7 @@ interface BreadcrumbProps {
 
 export default function Breadcrumb({ category, slug, title }: BreadcrumbProps) {
   return (
-    <nav className="mb-8 text-sm text-gray-500" aria-label="Breadcrumb">
+    <nav className="mb-8 text-sm text-secondary" aria-label="Breadcrumb">
       <ol className="flex flex-wrap items-center gap-x-2">
         <li>
           <Link href="/" className="hover:text-accent transition-colors">
@@ -25,7 +25,7 @@ export default function Breadcrumb({ category, slug, title }: BreadcrumbProps) {
           </Link>
         </li>
         <li aria-hidden="true">/</li>
-        <li className="text-gray-300 line-clamp-1">{title}</li>
+        <li className="text-text line-clamp-1">{title}</li>
       </ol>
     </nav>
   );

@@ -9,7 +9,7 @@ export default function TableOfContents({ headings }: TableOfContentsProps) {
 
   return (
     <nav className="text-sm" aria-label="Table of contents">
-      <p className="font-semibold text-gray-300 mb-3 uppercase tracking-wide text-xs">
+      <p className="font-semibold text-text mb-3 uppercase tracking-wide text-xs">
         Contents
       </p>
       <ol className="space-y-2">
@@ -17,7 +17,7 @@ export default function TableOfContents({ headings }: TableOfContentsProps) {
           <li key={h.id} className={h.level === 3 ? 'pl-3' : undefined}>
             <a
               href={`#${h.id}`}
-              className="text-gray-400 hover:text-accent transition-colors leading-snug"
+              className="text-secondary hover:text-accent transition-colors leading-snug"
             >
               {h.text}
             </a>
