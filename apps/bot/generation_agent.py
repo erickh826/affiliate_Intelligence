@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 import jsonschema
+
+_LOG = logging.getLogger(__name__)
 
 _OUTLINE_MODEL = "gpt-4o-mini"
 _SECTION_MODEL = "claude-haiku-4-5-20251001"
@@ -48,8 +51,47 @@ class LLMAPIError(GenerationError):
     """Errors from external LLM APIs."""
 
 
+class ProviderOutageError(LLMAPIError):
+    """Quota or billing failure on every outline provider for this run."""
+
+
 class ValidationError(GenerationError):
     """Errors when validating LLM output."""
+
+
+_OUTAGE_MARKERS = (
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "credit balance",
+    "no credits remaining",
+    "exceeded your current quota",
+    "purchase credits",
+    "billing",
+)
+
+
+def _is_provider_outage(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _OUTAGE_MARKERS)
+
+
+def _parse_json_payload(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end < start:
+        raise json.JSONDecodeError("no json object", cleaned, 0)
+    payload = json.loads(cleaned[start : end + 1])
+    if not isinstance(payload, dict):
+        raise LLMAPIError("Anthropic outline response was not a JSON object")
+    return payload
 
 
 def _summarise_research(research_bundle: dict[str, Any]) -> str:
@@ -255,6 +297,68 @@ async def _call_outline(
         raise LLMAPIError(f"Outline generation failed: {exc}") from exc
 
 
+async def _call_anthropic_outline(
+    keyword: str, intent: str, research_summary: str
+) -> dict[str, Any]:
+    from anthropic import AnthropicError, AsyncAnthropic
+
+    system = (
+        f"{_SYSTEM_OUTLINE} Return only one JSON object. "
+        "Do not wrap it in markdown fences."
+    )
+    try:
+        client = AsyncAnthropic()
+        message = await client.messages.create(
+            model=_section_model(),
+            max_tokens=4096,
+            system=system,
+            messages=[
+                {
+                    "role": "user",
+                    "content": _outline_prompt(keyword, intent, research_summary),
+                }
+            ],
+            temperature=0.3,
+        )
+        text = message.content[0].text
+    except (AnthropicError, IndexError, AttributeError) as exc:
+        raise LLMAPIError(f"Anthropic outline generation failed: {exc}") from exc
+    try:
+        return _parse_json_payload(text)
+    except (json.JSONDecodeError, LLMAPIError) as exc:
+        raise LLMAPIError(f"Anthropic outline generation failed: {exc}") from exc
+
+
+async def _load_outline(
+    keyword: str, intent: str, research_summary: str
+) -> dict[str, Any]:
+    try:
+        return await _call_outline(keyword, intent, research_summary)
+    except LLMAPIError as openai_exc:
+        _LOG.info(
+            json.dumps(
+                {
+                    "event": "outline_fallback",
+                    "provider": "anthropic",
+                    "model": _section_model(),
+                    "error": str(openai_exc),
+                }
+            )
+        )
+        try:
+            return await _call_anthropic_outline(keyword, intent, research_summary)
+        except LLMAPIError as anthropic_exc:
+            if _is_provider_outage(openai_exc) or _is_provider_outage(anthropic_exc):
+                raise ProviderOutageError(
+                    "Outline providers unavailable: "
+                    f"openai={openai_exc}; anthropic={anthropic_exc}"
+                ) from anthropic_exc
+            raise LLMAPIError(
+                "Outline generation failed: "
+                f"{openai_exc}; anthropic fallback failed: {anthropic_exc}"
+            ) from anthropic_exc
+
+
 async def _call_anthropic_section(
     h2: str,
     h3s: list[str],
@@ -347,10 +451,23 @@ async def _write_one_section(
             content = await _call_anthropic_section(
                 h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
             )
-        except LLMAPIError:
-            content = await _call_openai_section(
-                h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
-            )
+        except LLMAPIError as anthropic_exc:
+            try:
+                content = await _call_openai_section(
+                    h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
+                )
+            except LLMAPIError as openai_exc:
+                if _is_provider_outage(anthropic_exc) or _is_provider_outage(
+                    openai_exc
+                ):
+                    raise ProviderOutageError(
+                        "Section providers unavailable: "
+                        f"anthropic={anthropic_exc}; openai={openai_exc}"
+                    ) from openai_exc
+                raise LLMAPIError(
+                    "Section generation failed: "
+                    f"{anthropic_exc}; openai fallback failed: {openai_exc}"
+                ) from openai_exc
         return {
             "h2": h2,
             "h3s": h3s,
@@ -424,7 +541,7 @@ async def generate_outline(
     summary = _summarise_research(research_bundle)
     last_error: ValidationError | None = None
     for _attempt in range(3):
-        outline = _normalize_outline(await _call_outline(keyword, intent, summary))
+        outline = _normalize_outline(await _load_outline(keyword, intent, summary))
         try:
             _validate_outline(outline)
         except ValidationError as exc:

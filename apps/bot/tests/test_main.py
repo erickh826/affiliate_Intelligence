@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from db_setup import init_db
-from generation_agent import generate_outline, write_sections
+from generation_agent import (
+    ProviderOutageError,
+    ValidationError,
+    generate_outline,
+    write_sections,
+)
 from main import assemble_article, run
 from quality_gate import CheckResult, QAResult
-from research_agent import build_research_bundle
+from research_agent import ResearchAgentError, build_research_bundle
 
 _INSERT = (
     "INSERT INTO keywords "
@@ -357,6 +363,140 @@ class TestRunLive:
         assert calls["n"] == 1
         assert list((tmp_path / "content").rglob("*.mdx")) == []
 
+    def test_provider_outage_releases_batch_and_exits_nonzero(
+        self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = {"n": 0}
+
+        def fake_research(
+            keyword: str, intent: str, dry_run: bool = False, **_kwargs: object
+        ) -> dict:
+            calls["n"] += 1
+            return build_research_bundle(keyword, intent, dry_run=True)
+
+        async def outage_outline(
+            keyword: str, intent: str, research: dict, dry_run: bool = False
+        ) -> dict:
+            raise ProviderOutageError(
+                "Outline providers unavailable: credit_balance_exhausted"
+            )
+
+        monkeypatch.setattr("main.build_research_bundle", fake_research)
+        monkeypatch.setattr("main.generate_outline", outage_outline)
+
+        code = run(
+            batch=3,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=tmp_path / "content",
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+
+        conn = sqlite3.connect(seeded_db)
+        statuses = dict(conn.execute("SELECT slug, status FROM keywords").fetchall())
+        conn.close()
+        assert code == 2
+        assert calls["n"] == 1
+        assert list((tmp_path / "content").rglob("*.mdx")) == []
+        assert set(statuses.values()) == {"pending"}
+
+    def test_retryable_research_timeout_stays_pending(
+        self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = {"n": 0}
+
+        def flaky_research(
+            keyword: str, intent: str, dry_run: bool = False, **_kwargs: object
+        ) -> dict:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ResearchAgentError(
+                    "external research request failed: The read operation timed out"
+                )
+            return build_research_bundle(keyword, intent, dry_run=True)
+
+        async def fake_outline(
+            keyword: str, intent: str, research: dict, dry_run: bool = False
+        ) -> dict:
+            return await generate_outline(keyword, intent, research, dry_run=True)
+
+        async def fake_sections(
+            outline: dict,
+            research: dict,
+            intent: str,
+            dry_run: bool = False,
+            **kwargs: object,
+        ) -> list:
+            return await write_sections(
+                outline, research, intent, dry_run=True, **kwargs
+            )
+
+        monkeypatch.setattr("main.build_research_bundle", flaky_research)
+        monkeypatch.setattr("main.generate_outline", fake_outline)
+        monkeypatch.setattr("main.write_sections", fake_sections)
+
+        content_root = tmp_path / "content"
+        code = run(
+            batch=2,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=content_root,
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+
+        conn = sqlite3.connect(seeded_db)
+        timed_out = conn.execute(
+            "SELECT status FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+        failed = conn.execute(
+            "SELECT COUNT(*) FROM keywords WHERE status = 'failed'"
+        ).fetchone()[0]
+        published = conn.execute(
+            "SELECT COUNT(*) FROM keywords WHERE status = 'published'"
+        ).fetchone()[0]
+        conn.close()
+        assert code == 0
+        assert calls["n"] == 2
+        assert timed_out == ("pending",)
+        assert failed == 0
+        assert published == 1
+        assert len(list(content_root.rglob("*.mdx"))) == 1
+
+    def test_validation_error_still_marks_failed(
+        self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_research(
+            keyword: str, intent: str, dry_run: bool = False, **_kwargs: object
+        ) -> dict:
+            return build_research_bundle(keyword, intent, dry_run=True)
+
+        async def bad_outline(
+            keyword: str, intent: str, research: dict, dry_run: bool = False
+        ) -> dict:
+            raise ValidationError("Outline validation failed")
+
+        monkeypatch.setattr("main.build_research_bundle", fake_research)
+        monkeypatch.setattr("main.generate_outline", bad_outline)
+
+        code = run(
+            batch=1,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=tmp_path / "content",
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+
+        conn = sqlite3.connect(seeded_db)
+        status = conn.execute(
+            "SELECT status FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+        conn.close()
+        assert code == 0
+        assert status == ("failed",)
+        assert list((tmp_path / "content").rglob("*.mdx")) == []
+
 
 def test_published_rows_match_content_files() -> None:
     root = Path(__file__).resolve().parents[3]
@@ -389,3 +529,35 @@ def test_published_rows_match_content_files() -> None:
     assert mdx_slugs == published
     assert faq_slugs == published
     assert map_slugs == published
+
+
+def test_quota_burned_keywords_are_pending() -> None:
+    root = Path(__file__).resolve().parents[3]
+    sql = (
+        root / "data" / "migrations" / "002_requeue_quota_failed_keywords.sql"
+    ).read_text(encoding="utf-8")
+    in_list = sql.split("slug IN", 1)[1]
+    slugs = re.findall(r"'([a-z0-9-]+)'", in_list)
+    conn = sqlite3.connect(root / "data" / "keywords.db")
+    rows = conn.execute(
+        f"SELECT slug, status FROM keywords WHERE slug IN ({','.join('?' * len(slugs))})",
+        slugs,
+    ).fetchall()
+    still_failed = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'failed'"
+        ).fetchall()
+    }
+    conn.close()
+    assert len(slugs) == 25
+    assert {row[0] for row in rows} == set(slugs)
+    assert {row[1] for row in rows} == {"pending"}
+    assert still_failed == {
+        "best-ai-coding-assistants-2026",
+        "best-ai-image-generators-2026",
+        "best-ai-productivity-tools-2026",
+        "how-to-create-ai-art-for-free",
+        "how-to-make-ai-videos-for-youtube",
+        "how-to-use-midjourney",
+    }
