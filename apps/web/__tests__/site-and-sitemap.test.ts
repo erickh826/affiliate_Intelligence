@@ -142,3 +142,24 @@ Body
     ).toBe('2026-09-30T00:00:00.000Z');
   });
 });
+
+describe('sitemap build output', () => {
+  const webRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+  it('regenerates the sitemap during the Vercel build', () => {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(webRoot, 'package.json'), 'utf8'),
+    ) as { scripts?: { build?: string; postbuild?: string } };
+    const vercel = JSON.parse(
+      fs.readFileSync(path.join(webRoot, 'vercel.json'), 'utf8'),
+    ) as { buildCommand?: string };
+    const gitignore = fs.readFileSync(path.join(webRoot, '.gitignore'), 'utf8');
+
+    expect(pkg.scripts?.build).toBe('next build');
+    expect(pkg.scripts?.postbuild).toBe('next-sitemap');
+    expect(vercel.buildCommand).toBe('npm run build');
+    expect(gitignore).toContain('public/sitemap.xml');
+    expect(gitignore).toContain('public/sitemap-*.xml');
+    expect(gitignore).toContain('public/robots.txt');
+  });
+});
