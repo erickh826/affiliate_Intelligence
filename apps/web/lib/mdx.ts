@@ -13,6 +13,7 @@ export interface Frontmatter {
   author: string;
   affiliate_partner: string | null;
   schema_type: string;
+  image?: string;
 }
 
 export interface Heading {

@@ -22,7 +22,7 @@ export default function AffiliateCTA({
         >
           {text}
         </a>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-secondary">
           We may earn a commission if you click this link.{' '}
           <span className="capitalize">{partner.replace(/_/g, ' ')}</span> is an
           affiliate partner.
@@ -32,8 +32,8 @@ export default function AffiliateCTA({
   }
 
   return (
-    <div className="my-8 p-5 bg-surface border border-gray-700 rounded-lg">
-      <p className="text-sm text-gray-400 mb-3">
+    <div className="my-8 p-5 bg-surface border border-border rounded-lg">
+      <p className="text-sm text-secondary mb-3">
         We may earn a commission if you click this link.
       </p>
       <a

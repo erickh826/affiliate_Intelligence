@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { categoryLabel } from '../../lib/blog-listing';
 import { getAllArticles } from '../../lib/mdx';
 import { getSiteName, getSiteUrl } from '../../lib/site';
 import ArticleCard from '../../components/ArticleCard';
@@ -22,7 +23,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { category } = await params;
   const siteName = getSiteName();
-  const label = category.replace(/-/g, ' ');
+  const label = categoryLabel(category);
   return {
     title: `${label} | ${siteName}`,
     description: `Browse all ${label} articles.`,
@@ -51,20 +52,20 @@ export default async function CategoryPage({
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const articles = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const label = category.replace(/-/g, ' ');
+  const label = categoryLabel(category);
 
   return (
     <div className="layout-container py-12">
       <header className="mb-10">
-        <nav className="text-sm text-gray-500 mb-4">
+        <nav className="text-sm text-secondary mb-4">
           <Link href="/" className="hover:text-accent transition-colors">
             Home
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-gray-300 capitalize">{label}</span>
+          <span className="text-text">{label}</span>
         </nav>
-        <h1 className="text-4xl font-bold font-display capitalize">{label}</h1>
-        <p className="text-gray-400 mt-2">{sorted.length} articles</p>
+        <h1 className="text-4xl font-bold font-display">{label}</h1>
+        <p className="text-secondary mt-2">{sorted.length} articles</p>
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -85,19 +86,19 @@ export default async function CategoryPage({
             <Link
               href={`/${category}?page=${page - 1}`}
               rel="prev"
-              className="px-4 py-2 border border-gray-700 rounded hover:border-accent transition-colors text-sm"
+              className="px-4 py-2 border border-border rounded hover:border-accent transition-colors text-sm"
             >
               Previous
             </Link>
           )}
-          <span className="px-4 py-2 text-sm text-gray-400">
+          <span className="px-4 py-2 text-sm text-secondary">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
             <Link
               href={`/${category}?page=${page + 1}`}
               rel="next"
-              className="px-4 py-2 border border-gray-700 rounded hover:border-accent transition-colors text-sm"
+              className="px-4 py-2 border border-border rounded hover:border-accent transition-colors text-sm"
             >
               Next
             </Link>

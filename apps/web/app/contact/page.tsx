@@ -18,7 +18,7 @@ export default function ContactPage() {
       <div className="max-w-3xl space-y-8">
         <header className="space-y-3">
           <h1 className="text-4xl font-bold font-display">Contact</h1>
-          <p className="text-lg text-gray-400">
+          <p className="text-lg text-secondary">
             Send editorial questions, corrections, or partnership enquiries.
           </p>
         </header>
@@ -26,12 +26,12 @@ export default function ContactPage() {
         <form
           action={formAction}
           method="POST"
-          className="space-y-5 rounded-xl border border-gray-800 bg-surface p-6"
+          className="space-y-5 rounded-xl border border-border bg-surface p-6"
         >
           <div className="space-y-2">
             <label
               htmlFor="name"
-              className="block text-sm font-medium text-gray-200"
+              className="block text-sm font-medium text-text"
             >
               Name
             </label>
@@ -39,14 +39,14 @@ export default function ContactPage() {
               id="name"
               name="name"
               type="text"
-              className="w-full rounded-lg border border-gray-700 bg-background px-4 py-3 text-text outline-none focus:border-accent"
+              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-text outline-none focus:border-accent"
               required
             />
           </div>
           <div className="space-y-2">
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-200"
+              className="block text-sm font-medium text-text"
             >
               Email
             </label>
@@ -54,14 +54,14 @@ export default function ContactPage() {
               id="email"
               name="email"
               type="email"
-              className="w-full rounded-lg border border-gray-700 bg-background px-4 py-3 text-text outline-none focus:border-accent"
+              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-text outline-none focus:border-accent"
               required
             />
           </div>
           <div className="space-y-2">
             <label
               htmlFor="message"
-              className="block text-sm font-medium text-gray-200"
+              className="block text-sm font-medium text-text"
             >
               Message
             </label>
@@ -69,7 +69,7 @@ export default function ContactPage() {
               id="message"
               name="message"
               rows={6}
-              className="w-full rounded-lg border border-gray-700 bg-background px-4 py-3 text-text outline-none focus:border-accent"
+              className="w-full rounded-lg border border-border bg-background px-4 py-3 text-text outline-none focus:border-accent"
               required
             />
           </div>
@@ -80,7 +80,7 @@ export default function ContactPage() {
             Send message
           </button>
           {!formId && (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-secondary">
               Form endpoint not configured. Use{' '}
               <a
                 href="mailto:editor@example.com"

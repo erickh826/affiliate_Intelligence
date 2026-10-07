@@ -1,9 +1,17 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { Inter } from 'next/font/google';
 import GoogleAnalytics from '../components/GoogleAnalytics';
-import ThemeToggle from '../components/ThemeToggle';
+import SiteFooter from '../components/blog/SiteFooter';
+import SiteHeader from '../components/blog/SiteHeader';
 import { getSiteName, getSiteUrl } from '../lib/site';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -29,61 +37,26 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="bg-background text-text min-h-screen">
-        <header className="border-b border-surface py-4">
-          <div className="layout-container flex justify-between items-center">
-            <Link
-              href="/"
-              className="text-2xl font-display font-bold text-accent"
-            >
-              {getSiteName()}
-            </Link>
-            <div className="flex items-center gap-5 text-sm">
-              <nav className="hidden sm:flex items-center gap-4 text-gray-400">
-                <Link
-                  href="/about"
-                  className="hover:text-accent transition-colors"
-                >
-                  About
-                </Link>
-                <Link
-                  href="/contact"
-                  className="hover:text-accent transition-colors"
-                >
-                  Contact
-                </Link>
-                <Link
-                  href="/disclaimer"
-                  className="hover:text-accent transition-colors"
-                >
-                  Disclaimer
-                </Link>
-              </nav>
-              <ThemeToggle />
-            </div>
-          </div>
-        </header>
+    <html
+      lang="en"
+      className={`${inter.variable} scroll-smooth motion-reduce:scroll-auto`}
+    >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin=""
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen bg-background font-body text-text">
+        <SiteHeader />
         <main>{children}</main>
-        <footer className="border-t border-surface py-8 mt-12">
-          <div className="layout-container text-center text-sm text-gray-500 space-y-3">
-            <p>&copy; 2026 Affiliate Intelligence. All rights reserved.</p>
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/privacy-policy"
-                className="hover:text-accent transition-colors"
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/contact"
-                className="hover:text-accent transition-colors"
-              >
-                Contact
-              </Link>
-            </div>
-          </div>
-        </footer>
+        <SiteFooter />
         <GoogleAnalytics />
       </body>
     </html>

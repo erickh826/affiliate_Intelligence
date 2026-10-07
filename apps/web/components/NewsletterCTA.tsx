@@ -1,8 +1,8 @@
 export default function NewsletterCTA() {
   return (
-    <div className="my-6 p-5 bg-surface border border-gray-700 rounded-lg">
-      <p className="font-semibold text-gray-200 mb-1">Stay updated</p>
-      <p className="text-sm text-gray-400 mb-3">
+    <div className="my-6 p-5 bg-surface border border-border rounded-lg">
+      <p className="font-semibold text-text mb-1">Stay updated</p>
+      <p className="text-sm text-secondary mb-3">
         Get the latest AI tool comparisons and reviews.
       </p>
       <a

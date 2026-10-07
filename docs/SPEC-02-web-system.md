@@ -1,6 +1,6 @@
 # SPEC-02 — Web Publishing System
 
-**Version:** 1.0 | **Updated:** 2026-05-12
+**Version:** 1.1 | **Updated:** 2026-10-07
 **Related:** [README](../README.md) | [SPEC-01](./SPEC-01-content-bot.md) | [SPEC-03](./SPEC-03-monetisation.md)
 
 ---
@@ -17,7 +17,7 @@ SPEC-02 defines the web publishing layer. It takes MDX + metadata from SPEC-01 a
 |---|---|---|
 | Framework | Next.js 14 (App Router) | SSG/ISR, MDX-native, Vercel integration |
 | Content | MDX files in `apps/web/content/` | Bot-writable, version-controlled |
-| Styling | Tailwind CSS v4 | Utility-first, fast |
+| Styling | Tailwind CSS v4 | Utility-first, compiled with `@tailwindcss/postcss` |
 | Deployment | Vercel (free tier) | Auto-deploy on git push, global CDN |
 | Analytics | GA4 + Google Search Console | Traffic + SEO measurement |
 | Domain | Custom `.com` | Required for AdSense |
@@ -178,18 +178,30 @@ Rows marked `needs_rewrite` are re-queued to SPEC-01 in `rewrite_mode`.
 
 ## 8. Design System
 
-| Token | Dark (default) | Light |
-|---|---|---|
-| Background | `#111827` | `#fafaf9` |
-| Surface | `#1f2937` | `#f5f5f4` |
-| Accent | `#0d9488` | `#0d9488` |
-| Text | `#f9fafb` | `#1c1917` |
-| Font display | Instrument Serif | same |
-| Font body | Inter | same |
-| Border radius | 8px cards, 12px panels | same |
-| Max content width | 720px prose, 1100px layout | same |
+Hybrid blog UI: light canvas, restrained news layout, content structure from the approved preview.
 
-Dark mode default. System preference toggle in header.
+| Token | Value |
+|---|---|
+| Canvas | `#FFFFFF` |
+| Surface subtle | `#F6F7F9` |
+| Text primary | `#171717` |
+| Text secondary | `#666666` |
+| Border subtle | `#E5E7EB` |
+| Accent | `#2563EB` |
+| Fonts | Inter + Noto Sans TC |
+| Radius | 8px cards, 12px hero panel |
+| Max content width | 720px prose, 1200px layout |
+| Spacing | 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 |
+
+Homepage order:
+
+1. Sticky header: wordmark, text nav, primary pill CTA
+2. Featured article: dark gradient banner (no stock photo), then category, date, title, excerpt, and read link
+3. Topic links: wrap-friendly text pills from published categories
+4. Popular articles: up to three cards, then horizontal list rows for the rest
+5. Grouped footer: Product, Pricing, Company, Support, Editorial
+
+Article grid: 1 column below 640px, 2 columns from 640px, 3 columns from 1024px. Card images render only when frontmatter `image` points at a file in `public/`; otherwise the card shows a gray "No image" block. The homepage does not include search, filter chips, or a load-more control. The header does not include a theme toggle.
 
 ---
 
