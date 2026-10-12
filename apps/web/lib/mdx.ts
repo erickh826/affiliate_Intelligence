@@ -48,7 +48,7 @@ export function neutralizeUnresolvedLinks(content: string): string {
   return content.replace(UNRESOLVED_LINK_RE, '$1');
 }
 
-function headingId(text: string, seen: Map<string, number>): string {
+export function headingId(text: string, seen: Map<string, number>): string {
   const base = text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -58,21 +58,44 @@ function headingId(text: string, seen: Map<string, number>): string {
   return count === 1 ? base : `${base}-${count}`;
 }
 
-export function getHeadings(content: string): Heading[] {
+function consumeHeadingLine(
+  line: string,
+  seen: Map<string, number>,
+): Heading | null {
+  const h2 = line.match(/^## (.+)/);
+  const h3 = line.match(/^### (.+)/);
+  if (h2) {
+    const text = h2[1].trim();
+    return { id: headingId(text, seen), text, level: 2 };
+  }
+  if (h3) {
+    const text = h3[1].trim();
+    return { id: headingId(text, seen), text, level: 3 };
+  }
+  return null;
+}
+
+export function collectHeadings(
+  content: string,
+  seen: Map<string, number> = new Map(),
+): Heading[] {
   const headings: Heading[] = [];
-  const seen = new Map<string, number>();
   for (const line of content.split('\n')) {
-    const h2 = line.match(/^## (.+)/);
-    const h3 = line.match(/^### (.+)/);
-    if (h2) {
-      const text = h2[1].trim();
-      headings.push({ id: headingId(text, seen), text, level: 2 });
-    } else if (h3) {
-      const text = h3[1].trim();
-      headings.push({ id: headingId(text, seen), text, level: 3 });
-    }
+    const heading = consumeHeadingLine(line, seen);
+    if (heading) headings.push(heading);
   }
   return headings;
+}
+
+export function getHeadings(content: string): Heading[] {
+  return collectHeadings(content);
+}
+
+export function headingIdsForParts(parts: string[]): string[][] {
+  const seen = new Map<string, number>();
+  return parts.map((part) =>
+    collectHeadings(part, seen).map((heading) => heading.id),
+  );
 }
 
 export function splitAtH2(content: string): string[] {

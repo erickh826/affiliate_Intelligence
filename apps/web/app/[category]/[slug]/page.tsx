@@ -8,8 +8,11 @@ import { mdxComponents } from '../../../lib/mdx-components';
 import {
   getAllArticles,
   getFAQBySlug,
+  headingIdsForParts,
   getMDXDataBySlug,
 } from '../../../lib/mdx';
+import { rehypeHeadingIds } from '../../../lib/rehype-heading-ids';
+import { buildTableOfContents } from '../../../lib/toc';
 import { formatArticleDate } from '../../../lib/blog-listing';
 import { getSiteName, getSiteUrl } from '../../../lib/site';
 import { resolveCTAConfig } from '../../../lib/cta_injector';
@@ -25,11 +28,15 @@ import TableOfContents from '../../../components/TableOfContents';
 import YouTubeEmbed from '../../../components/YouTubeEmbed';
 
 const SITE_URL = getSiteUrl();
-const mdxRemoteOptions = {
-  mdxOptions: {
-    remarkPlugins: [remarkGfm],
-  },
-};
+
+function mdxOptionsFor(ids: string[]) {
+  return {
+    mdxOptions: {
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHeadingIds(ids)],
+    },
+  };
+}
 
 export async function generateStaticParams() {
   const articles = await getAllArticles();
@@ -78,7 +85,9 @@ export default async function ArticlePage({
 
   const faqData = await getFAQBySlug(slug);
   const ctaConfig = resolveCTAConfig(slug);
-  const { contentParts, headings } = article;
+  const { contentParts } = article;
+  const toc = buildTableOfContents(article.content);
+  const partHeadingIds = headingIdsForParts(contentParts);
   const articleSchema = buildArticleSchema(article.frontmatter, SITE_URL);
   const breadcrumbSchema = buildBreadcrumbSchema(
     category,
@@ -139,6 +148,10 @@ export default async function ArticlePage({
             </div>
           </header>
 
+          <div className="mb-8 lg:hidden">
+            <TableOfContents nodes={toc} />
+          </div>
+
           {ctaConfig ? (
             <AffiliateCTA placement="top" {...ctaConfig} />
           ) : (
@@ -149,14 +162,14 @@ export default async function ArticlePage({
             <MDXRemote
               source={contentParts[0]}
               components={mdxComponents}
-              options={mdxRemoteOptions}
+              options={mdxOptionsFor(partHeadingIds[0] ?? [])}
             />
 
             {contentParts[1] && (
               <MDXRemote
                 source={contentParts[1]}
                 components={mdxComponents}
-                options={mdxRemoteOptions}
+                options={mdxOptionsFor(partHeadingIds[1] ?? [])}
               />
             )}
 
@@ -167,7 +180,7 @@ export default async function ArticlePage({
                 <MDXRemote
                   source={part}
                   components={mdxComponents}
-                  options={mdxRemoteOptions}
+                  options={mdxOptionsFor(partHeadingIds[i + 2] ?? [])}
                 />
                 {i === 0 && arr.length > 1 && ctaConfig && (
                   <AffiliateCTA placement="inline" {...ctaConfig} />
@@ -216,9 +229,9 @@ export default async function ArticlePage({
           )}
         </div>
 
-        <aside className="hidden lg:block mt-0">
-          <div className="sticky top-24 space-y-6">
-            <TableOfContents headings={headings} />
+        <aside className="mt-0 hidden min-w-0 lg:block">
+          <div className="sticky top-24">
+            <TableOfContents nodes={toc} />
           </div>
         </aside>
       </div>
