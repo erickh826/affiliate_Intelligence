@@ -502,11 +502,8 @@ def run(
         )
 
     succeeded = sum(1 for outcome in outcomes if outcome == "success")
-    failed = sum(1 for outcome in outcomes if outcome == "failed")
-    retryable = sum(1 for outcome in outcomes if outcome == "retryable")
-    outages = sum(1 for outcome in outcomes if outcome == "outage")
     exit_code = 0
-    if succeeded == 0 and (outages or (retryable and not failed)):
+    if not dry_run and len(rows) > 0 and succeeded == 0:
         exit_code = 2
     _log_batch_finished(
         batch=batch,

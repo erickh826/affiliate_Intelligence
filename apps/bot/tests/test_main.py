@@ -498,7 +498,7 @@ class TestRunLive:
             ("best-ai-writing-tools",),
         ).fetchone()
         conn.close()
-        assert code == 0
+        assert code == 2
         assert status == ("failed",)
         assert list((tmp_path / "content").rglob("*.mdx")) == []
 
@@ -686,14 +686,57 @@ def test_published_rows_match_content_files() -> None:
     assert map_slugs == published
 
 
-def test_quota_burned_keywords_are_pending() -> None:
+_STILL_FAILED = {
+    "best-ai-coding-assistants-2026",
+    "best-ai-image-generators-2026",
+    "best-ai-productivity-tools-2026",
+    "how-to-create-ai-art-for-free",
+    "how-to-make-ai-videos-for-youtube",
+    "how-to-use-midjourney",
+}
+
+
+def _migration_slugs(name: str) -> list[str]:
     root = Path(__file__).resolve().parents[3]
-    sql = (
-        root / "data" / "migrations" / "002_requeue_quota_failed_keywords.sql"
-    ).read_text(encoding="utf-8")
+    sql = (root / "data" / "migrations" / name).read_text(encoding="utf-8")
     in_list = sql.split("slug IN", 1)[1]
-    slugs = re.findall(r"'([a-z0-9-]+)'", in_list)
-    conn = sqlite3.connect(root / "data" / "keywords.db")
+    return re.findall(r"'([a-z0-9-]+)'", in_list)
+
+
+def _seed_keywords(conn: sqlite3.Connection, slugs: list[str], status: str) -> None:
+    conn.executemany(
+        "INSERT INTO keywords "
+        "(keyword, category, intent, monthly_volume, difficulty, status, slug) "
+        "VALUES (?,?,?,?,?,?,?)",
+        [
+            (
+                slug.replace("-", " "),
+                "ai-writing",
+                "informational",
+                1000,
+                20,
+                status,
+                slug,
+            )
+            for slug in slugs
+        ],
+    )
+    conn.commit()
+
+
+def _apply_migration(conn: sqlite3.Connection, name: str) -> None:
+    root = Path(__file__).resolve().parents[3]
+    conn.executescript(
+        (root / "data" / "migrations" / name).read_text(encoding="utf-8")
+    )
+    conn.commit()
+
+
+def test_quota_burned_keywords_are_pending(tmp_path: Path) -> None:
+    slugs = _migration_slugs("002_requeue_quota_failed_keywords.sql")
+    conn = init_db(tmp_path / "keywords.db")
+    _seed_keywords(conn, [*slugs, *sorted(_STILL_FAILED)], "failed")
+    _apply_migration(conn, "002_requeue_quota_failed_keywords.sql")
     rows = conn.execute(
         f"SELECT slug, status FROM keywords WHERE slug IN ({','.join('?' * len(slugs))})",
         slugs,
@@ -708,11 +751,33 @@ def test_quota_burned_keywords_are_pending() -> None:
     assert len(slugs) == 25
     assert {row[0] for row in rows} == set(slugs)
     assert {row[1] for row in rows} == {"pending"}
-    assert still_failed == {
-        "best-ai-coding-assistants-2026",
-        "best-ai-image-generators-2026",
-        "best-ai-productivity-tools-2026",
-        "how-to-create-ai-art-for-free",
-        "how-to-make-ai-videos-for-youtube",
-        "how-to-use-midjourney",
+    assert still_failed == _STILL_FAILED
+
+
+def test_oct_sdk_failures_are_requeued(tmp_path: Path) -> None:
+    quota_slugs = _migration_slugs("002_requeue_quota_failed_keywords.sql")
+    sdk_slugs = _migration_slugs("003_requeue_oct_sdk_failed_keywords.sql")
+    already_pending = sorted(set(quota_slugs) - set(sdk_slugs))
+    conn = init_db(tmp_path / "keywords.db")
+    _seed_keywords(conn, sdk_slugs, "failed")
+    _seed_keywords(conn, already_pending, "pending")
+    _seed_keywords(conn, sorted(_STILL_FAILED), "failed")
+    _apply_migration(conn, "003_requeue_oct_sdk_failed_keywords.sql")
+    requeued = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'pending'"
+        ).fetchall()
     }
+    still_failed = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'failed'"
+        ).fetchall()
+    }
+    conn.close()
+    assert len(sdk_slugs) == 20
+    assert len(already_pending) == 5
+    assert set(sdk_slugs) <= requeued
+    assert set(already_pending) <= requeued
+    assert still_failed == _STILL_FAILED
