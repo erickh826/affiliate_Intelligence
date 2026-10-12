@@ -10,12 +10,16 @@ import {
   getFAQBySlug,
   headingIdsForParts,
   getMDXDataBySlug,
+  isDraft,
 } from '../../../lib/mdx';
 import { rehypeHeadingIds } from '../../../lib/rehype-heading-ids';
 import { buildTableOfContents } from '../../../lib/toc';
 import { formatArticleDate } from '../../../lib/blog-listing';
 import { getSiteName, getSiteUrl } from '../../../lib/site';
-import { resolveCTAConfig } from '../../../lib/cta_injector';
+import {
+  resolveCTAConfig,
+  shouldShowAffiliateDisclosure,
+} from '../../../lib/cta_injector';
 import {
   buildArticleSchema,
   buildBreadcrumbSchema,
@@ -23,6 +27,7 @@ import {
 } from '../../../lib/schema_builder';
 import Breadcrumb from '../../../components/Breadcrumb';
 import AffiliateCTA from '../../../components/AffiliateCTA';
+import AffiliateDisclosureNote from '../../../components/AffiliateDisclosureNote';
 import NewsletterCTA from '../../../components/NewsletterCTA';
 import TableOfContents from '../../../components/TableOfContents';
 import YouTubeEmbed from '../../../components/YouTubeEmbed';
@@ -59,10 +64,12 @@ export async function generateMetadata({
 
   const { title, description } = article.frontmatter;
   const canonical = `${SITE_URL}/${category}/${slug}/`;
+  const draft = isDraft(article.frontmatter);
 
   return {
     title: `${title} | ${siteName}`,
     description,
+    robots: draft ? { index: false, follow: false } : undefined,
     alternates: { canonical },
     openGraph: {
       title,
@@ -84,7 +91,14 @@ export default async function ArticlePage({
   if (!article) notFound();
 
   const faqData = await getFAQBySlug(slug);
-  const ctaConfig = resolveCTAConfig(slug);
+  const ctaConfig = resolveCTAConfig(
+    slug,
+    article.frontmatter.affiliate_partner,
+  );
+  const showAffiliateDisclosure = shouldShowAffiliateDisclosure(
+    ctaConfig,
+    article.content,
+  );
   const { contentParts } = article;
   const toc = buildTableOfContents(article.content);
   const partHeadingIds = headingIdsForParts(contentParts);
@@ -147,6 +161,8 @@ export default async function ArticlePage({
               )}
             </div>
           </header>
+
+          {showAffiliateDisclosure ? <AffiliateDisclosureNote /> : null}
 
           <div className="mb-8 lg:hidden">
             <TableOfContents nodes={toc} />
@@ -222,7 +238,10 @@ export default async function ArticlePage({
             <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border py-3 px-4 text-xs text-secondary text-center z-50">
               This page contains affiliate links. We may earn a commission at no
               cost to you.{' '}
-              <Link href="/disclaimer" className="text-accent hover:underline">
+              <Link
+                href="/affiliate-disclosure"
+                className="text-accent hover:underline"
+              >
                 Learn more
               </Link>
             </div>

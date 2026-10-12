@@ -1,6 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import { AFFILIATE_LINKS } from './affiliate-links';
+import {
+  type AffiliateProgram,
+  contentRendersAffiliateCta,
+  getProgram,
+  isProgramActive,
+  loadAffiliateConfig,
+} from './affiliates';
 
 export interface AffiliateMap {
   slug: string;
@@ -13,6 +19,7 @@ export interface CTAConfig {
   href: string;
   text: string;
   partner: string;
+  promoCode?: string;
 }
 
 export function getAffiliateMapPath(slug: string): string {
@@ -32,20 +39,34 @@ export function getAffiliateMap(slug: string): AffiliateMap | null {
   return JSON.parse(fs.readFileSync(mapPath, 'utf8')) as AffiliateMap;
 }
 
-export function resolveCTAUrl(map: AffiliateMap): string | null {
-  const fromLinks = map.links[map.primary_partner];
-  if (fromLinks && fromLinks.length > 0) return fromLinks;
-  return AFFILIATE_LINKS[map.primary_partner] ?? null;
+export function ctaFromProgram(
+  program: AffiliateProgram | null,
+): CTAConfig | null {
+  if (!isProgramActive(program)) return null;
+  const promoCode = program.promo_code.trim();
+  return {
+    href: program.url.trim(),
+    text: program.anchor.trim() || `Try ${program.name} →`,
+    partner: program.name.trim() || program.id,
+    ...(promoCode ? { promoCode } : {}),
+  };
 }
 
-export function resolveCTAConfig(slug: string): CTAConfig | null {
+export function resolveCTAConfig(
+  slug: string,
+  partnerId?: string | null,
+  programs: AffiliateProgram[] = loadAffiliateConfig().programs,
+): CTAConfig | null {
   const map = getAffiliateMap(slug);
-  if (!map) return null;
-  const url = resolveCTAUrl(map);
-  if (!url) return null;
-  return {
-    href: url,
-    text: `Try ${map.primary_partner.replace(/_/g, ' ')} →`,
-    partner: map.primary_partner,
-  };
+  const id = (partnerId ?? '').trim() || map?.primary_partner || '';
+  return ctaFromProgram(getProgram(id, programs));
+}
+
+export function shouldShowAffiliateDisclosure(
+  cta: CTAConfig | null,
+  content: string,
+  programs?: AffiliateProgram[],
+): boolean {
+  if (cta) return true;
+  return contentRendersAffiliateCta(content, programs);
 }

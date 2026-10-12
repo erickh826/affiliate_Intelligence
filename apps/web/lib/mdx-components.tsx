@@ -1,23 +1,15 @@
 import type { ComponentPropsWithoutRef } from 'react';
 import AffiliateCTA from '../components/AffiliateCTA';
-import { AFFILIATE_LINKS } from './affiliate-links';
+import { getProgram } from './affiliates';
+import { ctaFromProgram } from './cta_injector';
 
 type HeadingProps = ComponentPropsWithoutRef<'h2'>;
 type SubheadingProps = ComponentPropsWithoutRef<'h3'>;
 
 function ArticleAffiliateCTA({ partner }: { partner?: string }) {
-  const key = (partner ?? '').trim();
-  const href = AFFILIATE_LINKS[key];
-  if (!href || !key) return null;
-  const label = key.replace(/_/g, ' ');
-  return (
-    <AffiliateCTA
-      href={href}
-      text={`Try ${label} →`}
-      partner={key}
-      placement="inline"
-    />
-  );
+  const cta = ctaFromProgram(getProgram(partner));
+  if (!cta) return null;
+  return <AffiliateCTA placement="inline" {...cta} />;
 }
 
 export const mdxComponents = {

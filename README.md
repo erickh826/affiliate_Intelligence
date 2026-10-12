@@ -170,6 +170,16 @@ data/keywords.db (SQLite)
 
 ---
 
+## Affiliate links and drafts
+
+Affiliate programs are listed in `monetisation/affiliates.json`. Each entry has an `id`, referral `url`, `promo_code`, `anchor`, `category`, and `enabled` flag. The file ships with `YOUR_REF` placeholders and `enabled: false`.
+
+To add a real link, paste the referral URL and promo code for that program and set `enabled` to `true`. Articles store only the program `id` in frontmatter (`affiliate_partner`). CTAs, including `rel="sponsored"`, are rendered from this file, so changing a link does not require an MDX edit.
+
+The bot writes `draft: true` when quality assurance is WARN or FAIL, or when the article's category has no enabled program. Drafts stay out of the homepage, category indexes, and sitemap. To publish one, set `draft: false` in that article's frontmatter and deploy. The keyword row stays `draft`, so the bot will not generate it again.
+
+Category mix for each batch is `monetisation/category_weights.json`. AI Writing and SEO take most of the batch until each has 10 live articles, then the batch rotates across AI Writing, SEO, AI Voice & Video, Productivity & Automation, and AI Code.
+
 ## Quick Start
 
 ```bash

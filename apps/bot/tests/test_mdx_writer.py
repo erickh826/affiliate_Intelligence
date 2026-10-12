@@ -130,7 +130,9 @@ def test_frontmatter_fields_match_spec_01_section_8_1(
         "author",
         "affiliate_partner",
         "schema_type",
+        "draft",
     ]
+    assert "draft: true" in mdx
     assert 'published_at: "2026-05-17"' in mdx
 
 
@@ -178,15 +180,15 @@ def test_output_paths(tmp_path: Path, empty_db: Path) -> None:
     assert result.affiliate_map_path.exists()
 
 
-def test_failed_qa_skips_article_write(tmp_path: Path) -> None:
+def test_skip_action_does_not_write(tmp_path: Path) -> None:
     qa_result = QAResult(
         overall="FAIL",
-        checks=[CheckResult("word_count", "FAIL", "short", "regenerate")],
+        checks=[CheckResult("duplicate_detection", "FAIL", "duplicate", "skip")],
         article_updates={"status": "failed"},
     )
     result = write_article(
         _artifact(_article(), qa_result),
-        dry_run=True,
+        dry_run=False,
         content_root=tmp_path / "content",
         affiliate_map_root=tmp_path / "affiliate_map",
     )
@@ -195,6 +197,35 @@ def test_failed_qa_skips_article_write(tmp_path: Path) -> None:
     assert result.reason == "qa_failed"
     assert not (tmp_path / "content").exists()
     assert not (tmp_path / "affiliate_map").exists()
+
+
+def test_failed_qa_writes_draft(tmp_path: Path, empty_db: Path) -> None:
+    _db_with_keyword(empty_db)
+    qa_result = QAResult(
+        overall="FAIL",
+        checks=[CheckResult("word_count", "FAIL", "short", "regenerate")],
+        article_updates={"status": "failed"},
+    )
+    result = write_article(
+        _artifact(_article(), qa_result),
+        dry_run=False,
+        db_path=empty_db,
+        content_root=tmp_path / "content",
+        affiliate_map_root=tmp_path / "affiliate_map",
+        today=date(2026, 5, 17),
+    )
+
+    mdx = result.mdx_path.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    with sqlite3.connect(empty_db) as conn:
+        row = conn.execute(
+            "SELECT status, published_at FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+
+    assert result.skipped is False
+    assert result.draft is True
+    assert "draft: true" in mdx
+    assert row == ("draft", None)
 
 
 def test_faq_json_output(tmp_path: Path, empty_db: Path) -> None:
@@ -272,6 +303,28 @@ def test_dry_run_skips_deploy_and_db_update(tmp_path: Path, monkeypatch: Any) ->
     assert not (tmp_path / "affiliate_map").exists()
 
 
+def _enabled_affiliates(path: Path) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "programs": [
+                    {
+                        "id": "jasper",
+                        "name": "Jasper AI",
+                        "category": "ai-writing",
+                        "url": "https://jasper.ai/?via=test",
+                        "promo_code": "",
+                        "anchor": "Try Jasper",
+                        "enabled": True,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_publish_updates_db_status_and_published_at(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -289,6 +342,7 @@ def test_publish_updates_db_status_and_published_at(
         affiliate_map_root=tmp_path / "affiliate_map",
         deploy_post=calls.append,
         today=date(2026, 5, 17),
+        affiliates_path=_enabled_affiliates(tmp_path / "affiliates.json"),
     )
 
     with sqlite3.connect(db_path) as conn:
@@ -297,9 +351,12 @@ def test_publish_updates_db_status_and_published_at(
             ("best-ai-writing-tools",),
         ).fetchone()
 
+    mdx = result.mdx_path.read_text(encoding="utf-8")  # type: ignore[union-attr]
     assert result.db_updated is True
     assert result.deploy_triggered is True
+    assert result.draft is False
     assert calls == ["https://deploy.example/hook"]
+    assert "draft: false" in mdx
     assert row == ("published", "2026-05-17")
 
 
@@ -323,6 +380,7 @@ def test_deploy_hook_failure_keeps_published_status(
         affiliate_map_root=tmp_path / "affiliate_map",
         deploy_post=fail,
         today=date(2026, 5, 17),
+        affiliates_path=_enabled_affiliates(tmp_path / "affiliates.json"),
     )
 
     with sqlite3.connect(db_path) as conn:

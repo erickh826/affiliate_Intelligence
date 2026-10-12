@@ -24,9 +24,21 @@ export interface BlogListing {
 
 const ACRONYMS: Record<string, string> = {
   ai: 'AI',
+  seo: 'SEO',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  'ai-writing': 'AI Writing',
+  seo: 'SEO',
+  'ai-video': 'AI Voice & Video',
+  'ai-productivity': 'Productivity & Automation',
+  'ai-code': 'AI Code',
+  'ai-image': 'AI Image',
 };
 
 export function categoryLabel(category: string): string {
+  const known = CATEGORY_LABELS[category];
+  if (known) return known;
   return category
     .split('-')
     .filter(Boolean)

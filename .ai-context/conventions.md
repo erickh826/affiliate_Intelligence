@@ -173,6 +173,7 @@ last_reviewed: "YYYY-MM-DD"
 author: "string"
 affiliate_partner: "string"
 schema_type: "Article"
+draft: false
 ---
 ```
 

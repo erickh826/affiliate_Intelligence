@@ -56,6 +56,7 @@ function listPublishedRoutes(contentDir) {
     for (const file of files) {
       const raw = fs.readFileSync(path.join(categoryPath, file), 'utf8');
       const { data } = matter(raw);
+      if (data.draft === true || data.draft === 'true') continue;
       const category = segment(data.category, directory);
       const slug = segment(data.slug, file.replace(/\.mdx$/, ''));
       if (!category || !slug) continue;

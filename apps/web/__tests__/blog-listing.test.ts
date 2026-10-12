@@ -75,6 +75,10 @@ describe('blog listing', () => {
 
   it('formats category labels and calendar dates in UTC', () => {
     expect(categoryLabel('ai-writing')).toBe('AI Writing');
+    expect(categoryLabel('seo')).toBe('SEO');
+    expect(categoryLabel('ai-video')).toBe('AI Voice & Video');
+    expect(categoryLabel('ai-productivity')).toBe('Productivity & Automation');
+    expect(categoryLabel('ai-code')).toBe('AI Code');
     expect(formatArticleDate('2026-09-30')).toBe('September 30, 2026');
   });
 });

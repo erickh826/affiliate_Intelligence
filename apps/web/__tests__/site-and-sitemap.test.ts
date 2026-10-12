@@ -127,6 +127,56 @@ Body
     expect(routes.some((route) => route.loc.includes('notes'))).toBe(false);
   });
 
+  it('omits drafts from the sitemap and from empty draft-only categories', () => {
+    const contentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sitemap-draft-'));
+    const writing = path.join(contentDir, 'ai-writing');
+    const seo = path.join(contentDir, 'seo');
+    fs.mkdirSync(writing, { recursive: true });
+    fs.mkdirSync(seo, { recursive: true });
+    fs.writeFileSync(
+      path.join(writing, 'live.mdx'),
+      `---
+title: Live
+slug: live
+category: ai-writing
+draft: false
+published_at: 2026-10-01
+---
+Body
+`,
+    );
+    fs.writeFileSync(
+      path.join(writing, 'held.mdx'),
+      `---
+title: Held
+slug: held
+category: ai-writing
+draft: true
+published_at: 2026-10-02
+---
+Body
+`,
+    );
+    fs.writeFileSync(
+      path.join(seo, 'seo-draft.mdx'),
+      `---
+title: SEO draft
+slug: seo-draft
+category: seo
+draft: true
+---
+Body
+`,
+    );
+
+    const locs = listPublishedRoutes(contentDir).map((route) => route.loc);
+    expect(locs).toContain('/ai-writing/live');
+    expect(locs).toContain('/ai-writing');
+    expect(locs).not.toContain('/ai-writing/held');
+    expect(locs).not.toContain('/seo/seo-draft');
+    expect(locs).not.toContain('/seo');
+  });
+
   it('includes the published article in this repo', () => {
     const routes = listPublishedRoutes(
       path.join(path.dirname(fileURLToPath(import.meta.url)), '../content'),

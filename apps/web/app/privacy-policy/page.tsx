@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getSiteName } from '../../lib/site';
 
 const updatedAt = '2026-06-14';
@@ -44,7 +45,15 @@ export default function PrivacyPolicyPage() {
             <p>
               Google AdSense may show ads based on your visits to this and other
               websites. For more information, review Google&apos;s advertising
-              and privacy policies.
+              and privacy policies. Some articles also contain affiliate links.
+              See the{' '}
+              <Link
+                href="/affiliate-disclosure"
+                className="text-accent hover:underline"
+              >
+                affiliate disclosure
+              </Link>{' '}
+              for how those links work.
             </p>
           </div>
           <div className="space-y-2">

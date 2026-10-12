@@ -9,6 +9,7 @@ import platform
 import re
 import traceback
 from collections import Counter
+from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -252,6 +253,7 @@ async def _process_one(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
+    affiliates_path: Path | None,
 ) -> str:
     slug = str(row.get("slug") or row.get("keyword", "unknown"))
     step = "research"
@@ -303,6 +305,7 @@ async def _process_one(
             db_path=db_path,
             content_root=content_root,
             affiliate_map_root=affiliate_map_root,
+            affiliates_path=affiliates_path,
         )
     except ProviderOutageError as exc:
         _release_keyword(km, row)
@@ -401,6 +404,7 @@ async def _process_one(
                 "qa_overall": qa_result.overall,
                 "skipped": False,
                 "mdx_path": str(result.mdx_path) if result.mdx_path else None,
+                "draft": result.draft,
                 "checks_failed": sum(1 for c in qa_result.checks if c.result == "FAIL"),
             }
         )
@@ -418,6 +422,7 @@ async def _run_batch(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
+    affiliates_path: Path | None,
 ) -> list[str]:
     articles_written: list[dict[str, Any]] = []
     results = []
@@ -432,6 +437,7 @@ async def _run_batch(
             km=km,
             failed_steps=failed_steps,
             error_types=error_types,
+            affiliates_path=affiliates_path,
         )
         results.append(outcome)
         if outcome == "outage":
@@ -459,12 +465,19 @@ def run(
     db_path: Path = DB_PATH,
     content_root: Path = _DEFAULT_CONTENT_ROOT,
     affiliate_map_root: Path = _DEFAULT_AFFILIATE_MAP_ROOT,
+    affiliates_path: Path | None = None,
+    published_counts: Mapping[str, int] | None = None,
 ) -> int:
     _configure_logging()
     with KeywordManager(db_path) as km:
-        rows = km.select_keywords(batch)
+        rows = km.select_keywords(
+            batch,
+            content_root=content_root,
+            published_counts=published_counts,
+        )
         failed_steps: list[str] = []
         error_types: list[str] = []
+        category_mix = dict(Counter(str(row.get("category") or "") for row in rows))
         _LOG.info(
             json.dumps(
                 {
@@ -472,9 +485,19 @@ def run(
                     "batch": batch,
                     "dry_run": dry_run,
                     "selected": len(rows),
+                    "weight_mode": km.last_weight_mode,
+                    "category_mix": category_mix,
                     "runtime": _runtime_context(),
                 }
             )
+        )
+        _LOG.info(
+            "category_mix mode=%s %s",
+            km.last_weight_mode,
+            " ".join(
+                f"{category}={count}"
+                for category, count in sorted(category_mix.items())
+            ),
         )
         if not rows:
             _log_batch_finished(
@@ -498,6 +521,7 @@ def run(
                 km=km,
                 failed_steps=failed_steps,
                 error_types=error_types,
+                affiliates_path=affiliates_path,
             )
         )
 

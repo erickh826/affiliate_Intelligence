@@ -180,8 +180,31 @@ class TestSeed:
         conn.close()
         assert cats == {
             "ai-writing",
+            "seo",
             "ai-image",
             "ai-video",
             "ai-code",
             "ai-productivity",
         }
+
+    def test_affiliate_categories_have_selectable_keywords(self, tmp_db: Path) -> None:
+        seed(tmp_db)
+        conn = sqlite3.connect(tmp_db)
+        for category in (
+            "ai-writing",
+            "seo",
+            "ai-video",
+            "ai-productivity",
+            "ai-code",
+        ):
+            count = conn.execute(
+                """
+                SELECT COUNT(*) FROM keywords
+                WHERE category = ?
+                  AND monthly_volume > 100
+                  AND difficulty < 45
+                """,
+                (category,),
+            ).fetchone()[0]
+            assert count >= 10, category
+        conn.close()

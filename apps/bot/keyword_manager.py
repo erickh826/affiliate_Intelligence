@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Self
 
+from category_weights import (
+    choose_keywords,
+    count_live_articles,
+    load_weight_config,
+)
 from db_setup import DB_PATH, init_db
 
 _VOLUME_MIN = 100
 _DIFFICULTY_MAX = 45
 _VALID_STATUSES = frozenset(
-    {"pending", "published", "needs_rewrite", "failed", "generating"}
+    {"pending", "published", "needs_rewrite", "failed", "generating", "draft"}
 )
 
 
@@ -17,6 +23,7 @@ class KeywordManager:
     def __init__(self, db_path: Path = DB_PATH) -> None:
         self._conn = init_db(db_path)
         self._conn.row_factory = sqlite3.Row
+        self.last_weight_mode = "even"
 
     def __enter__(self) -> Self:
         return self
@@ -25,7 +32,14 @@ class KeywordManager:
         self.close()
 
     def select_keywords(
-        self, batch_size: int, mode: str = "normal", force: bool = False
+        self,
+        batch_size: int,
+        mode: str = "normal",
+        force: bool = False,
+        *,
+        published_counts: Mapping[str, int] | None = None,
+        weights_path: Path | None = None,
+        content_root: Path | None = None,
     ) -> list[dict[str, Any]]:
         if mode == "rewrite":
             statuses: tuple[str, ...] = ("needs_rewrite",)
@@ -40,9 +54,8 @@ class KeywordManager:
                 f"AND monthly_volume > {_VOLUME_MIN} AND difficulty < {_DIFFICULTY_MAX}"
             )
 
-        # Atomic select-and-lock
         with self._conn:
-            rows = self._conn.execute(
+            fetched = self._conn.execute(
                 f"""
                 SELECT *,
                        CAST(monthly_volume AS REAL) / (difficulty + 1) AS priority_score
@@ -50,12 +63,28 @@ class KeywordManager:
                 WHERE  status IN ({placeholders})
                 {filter_clause}
                 ORDER  BY priority_score DESC
-                LIMIT  ?
                 """,
-                (*statuses, batch_size),
+                statuses,
             ).fetchall()
+            candidates = [dict(row) for row in fetched]
+            if mode == "rewrite":
+                self.last_weight_mode = "rewrite"
+                chosen = candidates[:batch_size]
+            else:
+                counts = (
+                    dict(published_counts)
+                    if published_counts is not None
+                    else count_live_articles(content_root)
+                )
+                config = load_weight_config(weights_path)
+                chosen, self.last_weight_mode = choose_keywords(
+                    candidates,
+                    batch_size,
+                    published_counts=counts,
+                    config=config,
+                )
 
-            slugs = [row["slug"] for row in rows]
+            slugs = [row["slug"] for row in chosen]
             if slugs:
                 slug_placeholders = ",".join("?" * len(slugs))
                 self._conn.execute(
@@ -63,7 +92,7 @@ class KeywordManager:
                     slugs,
                 )
 
-        return [dict(row) for row in rows]
+        return chosen
 
     def get_keyword(self, slug: str) -> dict[str, Any] | None:
         row = self._conn.execute(

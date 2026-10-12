@@ -16,6 +16,7 @@ from urllib.error import URLError
 _LOG = logging.getLogger(__name__)
 _DEPLOY_RETRY_DELAY = 60.0
 
+from affiliates import category_has_enabled_program
 from db_setup import DB_PATH
 from models import AffiliateMap, ArticleArtifact, FAQItem, Frontmatter
 from quality_gate import QAResult
@@ -39,6 +40,7 @@ class MDXWriteResult:
     db_updated: bool = False
     deploy_triggered: bool = False
     reason: str | None = None
+    draft: bool = False
 
 
 class MDXWriterError(RuntimeError):
@@ -95,7 +97,9 @@ def _build_frontmatter(article: dict[str, Any]) -> Frontmatter:
     }
 
 
-def _render_frontmatter(frontmatter: Frontmatter, *, today_iso: str) -> str:
+def _render_frontmatter(
+    frontmatter: Frontmatter, *, today_iso: str, draft: bool
+) -> str:
     partner = frontmatter["affiliate_partner"] or ""
     fields = [
         ("title", frontmatter["title"]),
@@ -108,9 +112,14 @@ def _render_frontmatter(frontmatter: Frontmatter, *, today_iso: str) -> str:
         ("author", frontmatter["author"]),
         ("affiliate_partner", partner),
         ("schema_type", frontmatter["schema_type"]),
+        ("draft", "true" if draft else "false"),
     ]
     lines = ["---"]
-    lines.extend(f"{key}: {_frontmatter_value(str(value))}" for key, value in fields)
+    for key, value in fields:
+        if key == "draft":
+            lines.append(f"{key}: {value}")
+        else:
+            lines.append(f"{key}: {_frontmatter_value(str(value))}")
     lines.append("---")
     return "\n".join(lines)
 
@@ -170,8 +179,33 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
-def _update_published_status(db_path: Path, slug: str, published_at: str) -> None:
+def _qa_should_skip(qa_result: QAResult) -> bool:
+    return any(
+        check.result == "FAIL" and check.action == "skip" for check in qa_result.checks
+    )
+
+
+def article_is_draft(
+    qa_result: QAResult,
+    category: str,
+    *,
+    affiliates_path: Path | None = None,
+) -> bool:
+    if qa_result.overall in {"WARN", "FAIL"}:
+        return True
+    return not category_has_enabled_program(category, affiliates_path)
+
+
+def _update_written_status(
+    db_path: Path, slug: str, published_at: str, *, draft: bool
+) -> None:
     with sqlite3.connect(db_path) as conn:
+        if draft:
+            conn.execute(
+                "UPDATE keywords SET status = 'draft' WHERE slug = ?",
+                (slug,),
+            )
+            return
         conn.execute(
             """
             UPDATE keywords
@@ -232,20 +266,23 @@ def write_article(
     affiliate_map_root: Path = _AFFILIATE_MAP_ROOT,
     deploy_post: DeployPost = _default_deploy_post,
     today: date | None = None,
+    affiliates_path: Path | None = None,
 ) -> MDXWriteResult:
     slug = str(artifact.get("slug") or "").strip()
     if not slug:
         raise MDXWriterError("missing article field: slug")
     qa_result = artifact["qa_result"]
-    if qa_result.overall == "FAIL":
+    if _qa_should_skip(qa_result):
         return MDXWriteResult(slug=slug, skipped=True, reason="qa_failed")
-
-    if dry_run:
-        return MDXWriteResult(slug=slug, skipped=False)
 
     category = str(artifact.get("category") or "").strip()
     if not category:
         raise MDXWriterError("missing article field: category")
+    draft = article_is_draft(qa_result, category, affiliates_path=affiliates_path)
+
+    if dry_run:
+        return MDXWriteResult(slug=slug, skipped=False, draft=draft)
+
     published_at = (today or datetime.now(UTC).date()).isoformat()
     mdx_path = content_root / category / f"{slug}.mdx"
     faq_path = content_root / "faq" / f"{slug}.faq.json"
@@ -253,7 +290,7 @@ def write_article(
 
     mdx_path.parent.mkdir(parents=True, exist_ok=True)
     mdx = (
-        f"{_render_frontmatter(artifact['frontmatter'], today_iso=published_at)}"
+        f"{_render_frontmatter(artifact['frontmatter'], today_iso=published_at, draft=draft)}"
         f"\n\n{artifact['mdx_body']}\n"
     )
     mdx_path.write_text(mdx, encoding="utf-8")
@@ -267,7 +304,7 @@ def write_article(
     )
     _write_json(affiliate_map_path, artifact["affiliate_map"])
 
-    _update_published_status(db_path, slug, published_at)
+    _update_written_status(db_path, slug, published_at, draft=draft)
     db_updated = True
     deploy_triggered = _trigger_deploy(deploy_post)
 
@@ -279,4 +316,5 @@ def write_article(
         affiliate_map_path=affiliate_map_path,
         db_updated=db_updated,
         deploy_triggered=deploy_triggered,
+        draft=draft,
     )
