@@ -180,11 +180,11 @@ jobs:
 
 ### 5.2 Bot cron — `bot-cron.yml`
 
-Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a manual run. The workflow commits new MDX, FAQ JSON, affiliate maps, and `data/keywords.db`. It does not commit deletions under those paths, so a run cannot remove an article already on `main`.
+Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a manual run and accepts `batch` (default `1`). The workflow commits new MDX, FAQ JSON, affiliate maps, and `data/keywords.db` only when `github.ref` is `refs/heads/main`. A dispatch on another branch runs the bot and does not push to `main`. It does not commit deletions under those paths, so a run cannot remove an article already on `main`.
 
 GitHub turns scheduled workflows off on a public repository after 60 days without repository activity (`disabled_inactivity`). The `cron` key in the file does not fire while that state is set. Re-enable from the Actions tab or with `gh workflow enable bot-cron.yml`.
 
-If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures are handled inside the bot (that keyword is marked `failed`, the batch continues, exit code stays 0). Provider outages are different. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`). If both fail because of quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`, writes no MDX, and exits 2. Later commit steps are skipped, so a drained balance cannot land `feat(s01): add batch articles` with only `data/keywords.db` changed. A run that writes MDX commits those files together with the database. A run that only records terminal keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
+If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures still mark that keyword `failed` and the batch continues. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`, without `temperature`). Client-side SDK errors are `LLMAPIError`. If OpenAI failed for quota or billing, or both providers fail for quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`. A live batch that selects keywords and publishes none exits 2, including an all-quality-gate failure. Later commit steps are skipped, so a drained balance or a zero-MDX batch cannot land a commit. A main-branch run that writes MDX commits those files together with the database and can call the deploy hook. A main-branch run that publishes at least one article and only otherwise records keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` when no article paths changed, and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
 
 ```yaml
 name: Bot - Daily Article Generation
@@ -193,6 +193,12 @@ on:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      batch:
+        description: Articles to generate. The scheduled run ignores this and uses 5.
+        required: false
+        default: "1"
+        type: string
 
 permissions:
   contents: write
@@ -232,7 +238,11 @@ jobs:
           fi
       - run: pip install -r apps/bot/requirements.txt
       - name: Run bot
-        run: python apps/bot/main.py --batch 5
+        env:
+          BOT_BATCH: ${{ github.event_name == 'workflow_dispatch' && inputs.batch || '5' }}
+        run: |
+          echo "bot_batch=$BOT_BATCH ref=$GITHUB_REF"
+          python apps/bot/main.py --batch "$BOT_BATCH"
       - name: Checkpoint keyword database
         run: |
           python - <<'PY'
@@ -263,7 +273,7 @@ jobs:
             fi
           fi
       - name: Commit new articles
-        if: steps.content_changes.outputs.changed == 'true'
+        if: github.ref == 'refs/heads/main' && steps.content_changes.outputs.changed == 'true'
         run: |
           git config user.name "affiliate-bot"
           git config user.email "bot@users.noreply.github.com"
@@ -274,7 +284,7 @@ jobs:
           fi
           git push origin HEAD:main
       - name: Trigger Vercel deploy
-        if: success() && steps.content_changes.outputs.articles == 'true'
+        if: success() && github.ref == 'refs/heads/main' && steps.content_changes.outputs.articles == 'true'
         continue-on-error: true
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}

@@ -122,7 +122,7 @@ user_prompt = (
 
 Output validated against `outline_schema.json` before proceeding.
 
-If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. No extra secret is required. When both outline providers fail because of quota or billing, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2 so the cron job does not commit a database-only "articles" change. Transient timeouts stay retryable the same way. Quality-gate FAIL still sets `status=failed` and does not use this path.
+If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. The Anthropic outline request does not send `temperature`; `anthropic` 1.x removed that argument, and `anthropic` and `openai` are pinned in `apps/bot/requirements.txt`. Client-side SDK errors (`TypeError`, `ValueError`) are raised as `LLMAPIError`. No extra secret is required. When the OpenAI failure is quota or billing, including when the Anthropic call then fails as an `LLMAPIError`, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2. A live batch that selects keywords and publishes none also exits 2, so the cron does not commit an MDX-less database change. Dry runs and empty selections exit 0. Transient timeouts stay retryable. Quality-gate FAIL still sets `status=failed` on that keyword.
 
 ---
 

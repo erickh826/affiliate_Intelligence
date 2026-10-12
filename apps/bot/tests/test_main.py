@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import logging
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -14,6 +17,8 @@ from generation_agent import (
     write_sections,
 )
 from main import assemble_article, run
+from mdx_writer import MDXWriterError
+from mdx_writer import write_article as real_write_article
 from quality_gate import CheckResult, QAResult
 from research_agent import ResearchAgentError, build_research_bundle
 
@@ -493,9 +498,159 @@ class TestRunLive:
             ("best-ai-writing-tools",),
         ).fetchone()
         conn.close()
-        assert code == 0
+        assert code == 2
         assert status == ("failed",)
         assert list((tmp_path / "content").rglob("*.mdx")) == []
+
+
+def _assert_logs_omit_secrets(text: str) -> None:
+    for name in (
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "PERPLEXITY_API_KEY",
+        "FIRECRAWL_API_KEY",
+    ):
+        value = os.environ.get(name, "")
+        if len(value) >= 8:
+            assert value not in text
+
+
+def _json_events(caplog: pytest.LogCaptureFixture) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for message in caplog.messages:
+        if message.startswith("{"):
+            payload = json.loads(message)
+            if isinstance(payload, dict):
+                events.append(payload)
+    return events
+
+
+class TestDiagnosticLogging:
+    @pytest.mark.parametrize(
+        "failing_step",
+        ["research", "outline", "sections", "write"],
+    )
+    def test_article_error_logs_step_type_traceback_and_redacts_secrets(
+        self,
+        failing_step: str,
+        seeded_db: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        secret = "sk-diag-secret-value-should-not-leak"
+        monkeypatch.setenv("OPENAI_API_KEY", secret)
+        caplog.set_level(logging.INFO, logger="main")
+
+        def fake_research(
+            keyword: str, intent: str, dry_run: bool = False, **_kwargs: object
+        ) -> dict:
+            if failing_step == "research":
+                raise ResearchAgentError(f"research exploded {secret}")
+            return build_research_bundle(keyword, intent, dry_run=True)
+
+        async def fake_outline(
+            keyword: str, intent: str, research: dict, dry_run: bool = False
+        ) -> dict:
+            if failing_step == "outline":
+                raise TypeError(
+                    "AsyncMessages.create() got an unexpected keyword argument "
+                    f"'temperature' {secret}"
+                )
+            return await generate_outline(keyword, intent, research, dry_run=True)
+
+        async def fake_sections(
+            outline: dict,
+            research: dict,
+            intent: str,
+            dry_run: bool = False,
+            **kwargs: object,
+        ) -> list:
+            if failing_step == "sections":
+                raise TypeError(f"section exploded {secret}")
+            return await write_sections(
+                outline, research, intent, dry_run=True, **kwargs
+            )
+
+        def fake_write(*args: object, **kwargs: object) -> object:
+            if failing_step == "write":
+                raise MDXWriterError(f"write exploded {secret}")
+            return real_write_article(*args, **kwargs)
+
+        monkeypatch.setattr("main.build_research_bundle", fake_research)
+        monkeypatch.setattr("main.generate_outline", fake_outline)
+        monkeypatch.setattr("main.write_sections", fake_sections)
+        monkeypatch.setattr("main.write_article", fake_write)
+
+        run(
+            batch=1,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=tmp_path / "content",
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+
+        events = _json_events(caplog)
+        started = next(event for event in events if event["event"] == "batch_started")
+        runtime = started["runtime"]
+        assert isinstance(runtime, dict)
+        anthropic = runtime["anthropic"]
+        openai = runtime["openai"]
+        assert isinstance(anthropic, dict)
+        assert isinstance(openai, dict)
+        assert anthropic["writing_model"] == "claude-haiku-4-5-20251001"
+        assert openai["outline_model"] == "gpt-4o-mini"
+        assert "sdk" in anthropic
+        assert openai["api_key_configured"] is True
+
+        failure = next(event for event in events if event["event"] == "article_error")
+        assert failure["step"] == failing_step
+        if failing_step == "research":
+            assert failure["error_type"] == "ResearchAgentError"
+            assert not str(failure["error"]).startswith("unexpected:")
+        elif failing_step == "write":
+            assert failure["error_type"] == "MDXWriterError"
+        else:
+            assert failure["error_type"] == "TypeError"
+            assert str(failure["error"]).startswith("unexpected:")
+        assert "Traceback (most recent call last)" in str(failure["traceback"])
+        assert "[redacted:OPENAI_API_KEY]" in str(failure["error"])
+        assert secret not in caplog.text
+        _assert_logs_omit_secrets(caplog.text)
+
+        summary = next(
+            message
+            for message in caplog.messages
+            if message.startswith("batch_summary")
+        )
+        assert f"failed_steps={failing_step}:1" in summary
+        assert "selected=1" in summary
+        assert "succeeded=0" in summary
+
+    def test_dry_run_summary_reports_successes(
+        self,
+        seeded_db: Path,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        caplog.set_level(logging.INFO, logger="main")
+        code = run(
+            batch=3,
+            dry_run=True,
+            db_path=seeded_db,
+            content_root=tmp_path / "content",
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+        assert code == 0
+        summary = next(
+            message
+            for message in caplog.messages
+            if message.startswith("batch_summary")
+        )
+        assert "selected=3 succeeded=1 failed=2" in summary
+        assert "failed_steps=write:2" in summary
+        assert "exit_code=0" in summary
+        _assert_logs_omit_secrets(caplog.text)
 
 
 def test_published_rows_match_content_files() -> None:
@@ -531,14 +686,57 @@ def test_published_rows_match_content_files() -> None:
     assert map_slugs == published
 
 
-def test_quota_burned_keywords_are_pending() -> None:
+_STILL_FAILED = {
+    "best-ai-coding-assistants-2026",
+    "best-ai-image-generators-2026",
+    "best-ai-productivity-tools-2026",
+    "how-to-create-ai-art-for-free",
+    "how-to-make-ai-videos-for-youtube",
+    "how-to-use-midjourney",
+}
+
+
+def _migration_slugs(name: str) -> list[str]:
     root = Path(__file__).resolve().parents[3]
-    sql = (
-        root / "data" / "migrations" / "002_requeue_quota_failed_keywords.sql"
-    ).read_text(encoding="utf-8")
+    sql = (root / "data" / "migrations" / name).read_text(encoding="utf-8")
     in_list = sql.split("slug IN", 1)[1]
-    slugs = re.findall(r"'([a-z0-9-]+)'", in_list)
-    conn = sqlite3.connect(root / "data" / "keywords.db")
+    return re.findall(r"'([a-z0-9-]+)'", in_list)
+
+
+def _seed_keywords(conn: sqlite3.Connection, slugs: list[str], status: str) -> None:
+    conn.executemany(
+        "INSERT INTO keywords "
+        "(keyword, category, intent, monthly_volume, difficulty, status, slug) "
+        "VALUES (?,?,?,?,?,?,?)",
+        [
+            (
+                slug.replace("-", " "),
+                "ai-writing",
+                "informational",
+                1000,
+                20,
+                status,
+                slug,
+            )
+            for slug in slugs
+        ],
+    )
+    conn.commit()
+
+
+def _apply_migration(conn: sqlite3.Connection, name: str) -> None:
+    root = Path(__file__).resolve().parents[3]
+    conn.executescript(
+        (root / "data" / "migrations" / name).read_text(encoding="utf-8")
+    )
+    conn.commit()
+
+
+def test_quota_burned_keywords_are_pending(tmp_path: Path) -> None:
+    slugs = _migration_slugs("002_requeue_quota_failed_keywords.sql")
+    conn = init_db(tmp_path / "keywords.db")
+    _seed_keywords(conn, [*slugs, *sorted(_STILL_FAILED)], "failed")
+    _apply_migration(conn, "002_requeue_quota_failed_keywords.sql")
     rows = conn.execute(
         f"SELECT slug, status FROM keywords WHERE slug IN ({','.join('?' * len(slugs))})",
         slugs,
@@ -553,11 +751,33 @@ def test_quota_burned_keywords_are_pending() -> None:
     assert len(slugs) == 25
     assert {row[0] for row in rows} == set(slugs)
     assert {row[1] for row in rows} == {"pending"}
-    assert still_failed == {
-        "best-ai-coding-assistants-2026",
-        "best-ai-image-generators-2026",
-        "best-ai-productivity-tools-2026",
-        "how-to-create-ai-art-for-free",
-        "how-to-make-ai-videos-for-youtube",
-        "how-to-use-midjourney",
+    assert still_failed == _STILL_FAILED
+
+
+def test_oct_sdk_failures_are_requeued(tmp_path: Path) -> None:
+    quota_slugs = _migration_slugs("002_requeue_quota_failed_keywords.sql")
+    sdk_slugs = _migration_slugs("003_requeue_oct_sdk_failed_keywords.sql")
+    already_pending = sorted(set(quota_slugs) - set(sdk_slugs))
+    conn = init_db(tmp_path / "keywords.db")
+    _seed_keywords(conn, sdk_slugs, "failed")
+    _seed_keywords(conn, already_pending, "pending")
+    _seed_keywords(conn, sorted(_STILL_FAILED), "failed")
+    _apply_migration(conn, "003_requeue_oct_sdk_failed_keywords.sql")
+    requeued = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'pending'"
+        ).fetchall()
     }
+    still_failed = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'failed'"
+        ).fetchall()
+    }
+    conn.close()
+    assert len(sdk_slugs) == 20
+    assert len(already_pending) == 5
+    assert set(sdk_slugs) <= requeued
+    assert set(already_pending) <= requeued
+    assert still_failed == _STILL_FAILED

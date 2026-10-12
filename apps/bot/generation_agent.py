@@ -293,7 +293,7 @@ async def _call_outline(
             temperature=0.3,
         )
         return json.loads(response.choices[0].message.content or "{}")
-    except (OpenAIError, json.JSONDecodeError) as exc:
+    except (OpenAIError, TypeError, ValueError) as exc:
         raise LLMAPIError(f"Outline generation failed: {exc}") from exc
 
 
@@ -318,10 +318,9 @@ async def _call_anthropic_outline(
                     "content": _outline_prompt(keyword, intent, research_summary),
                 }
             ],
-            temperature=0.3,
         )
         text = message.content[0].text
-    except (AnthropicError, IndexError, AttributeError) as exc:
+    except (AnthropicError, IndexError, AttributeError, TypeError, ValueError) as exc:
         raise LLMAPIError(f"Anthropic outline generation failed: {exc}") from exc
     try:
         return _parse_json_payload(text)
@@ -392,7 +391,7 @@ async def _call_anthropic_section(
             ],
         )
         return message.content[0].text
-    except (AnthropicError, IndexError) as exc:
+    except (AnthropicError, IndexError, AttributeError, TypeError, ValueError) as exc:
         raise LLMAPIError(f"Anthropic section generation failed: {exc}") from exc
 
 
@@ -429,7 +428,7 @@ async def _call_openai_section(
             temperature=0.4,
         )
         return response.choices[0].message.content or ""
-    except OpenAIError as exc:
+    except (OpenAIError, TypeError, ValueError) as exc:
         raise LLMAPIError(f"OpenAI fallback section generation failed: {exc}") from exc
 
 

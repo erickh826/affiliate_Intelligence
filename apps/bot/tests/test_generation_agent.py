@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -363,6 +364,73 @@ class TestGenerateOutlineLive:
 
         anthropic_mock.assert_awaited()
         assert result["h1"] == expected["h1"]
+
+    def test_anthropic_outline_omits_temperature(self) -> None:
+        expected = _dry_run_outline("best ai tools", "comparison")
+        seen: dict[str, Any] = {}
+
+        async def openai_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise LLMAPIError("Outline generation failed: timeout")
+
+        class _Messages:
+            async def create(self, **kwargs: Any) -> Any:
+                seen.update(kwargs)
+                block = type("Block", (), {"text": json.dumps(expected)})()
+                return type("Message", (), {"content": [block]})()
+
+        class _Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                self.messages = _Messages()
+
+        with (
+            patch("generation_agent._call_outline", side_effect=openai_down),
+            patch("anthropic.AsyncAnthropic", _Client),
+        ):
+            result = asyncio.run(
+                generate_outline(
+                    "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=False
+                )
+            )
+
+        assert "temperature" not in seen
+        assert seen["model"] == "claude-haiku-4-5-20251001"
+        assert result["h1"] == expected["h1"]
+
+    @pytest.mark.parametrize(
+        "client_error",
+        [
+            TypeError(
+                "AsyncMessages.create() got an unexpected keyword argument 'temperature'"
+            ),
+            ValueError("invalid messages.create arguments"),
+        ],
+    )
+    def test_quota_plus_client_error_is_provider_outage(
+        self, client_error: Exception
+    ) -> None:
+        async def openai_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise LLMAPIError(
+                "Outline generation failed: Error code: 429 - credit_balance_exhausted"
+            )
+
+        class _Messages:
+            async def create(self, **_kwargs: Any) -> Any:
+                raise client_error
+
+        class _Client:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                self.messages = _Messages()
+
+        with (
+            patch("generation_agent._call_outline", side_effect=openai_down),
+            patch("anthropic.AsyncAnthropic", _Client),
+            pytest.raises(ProviderOutageError),
+        ):
+            asyncio.run(
+                generate_outline(
+                    "best ai tools", "comparison", _MOCK_RESEARCH, dry_run=False
+                )
+            )
 
     def test_outage_when_both_outline_providers_lack_credits(self) -> None:
         async def openai_down(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
