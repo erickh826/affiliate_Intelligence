@@ -175,6 +175,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci --prefix apps/web
       - run: npm run test --prefix apps/web
+      - run: npm run check:mdx --prefix apps/web
       - run: npm run build --prefix apps/web
 ```
 
@@ -184,7 +185,7 @@ Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a
 
 GitHub turns scheduled workflows off on a public repository after 60 days without repository activity (`disabled_inactivity`). The `cron` key in the file does not fire while that state is set. Re-enable from the Actions tab or with `gh workflow enable bot-cron.yml`.
 
-If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures still mark that keyword `failed` and the batch continues. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`, without `temperature`). Client-side SDK errors are `LLMAPIError`. If OpenAI failed for quota or billing, or both providers fail for quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`. A live batch that selects keywords and publishes none exits 2, including an all-quality-gate failure. Later commit steps are skipped, so a drained balance or a zero-MDX batch cannot land a commit. A main-branch run that writes MDX commits those files together with the database and can call the deploy hook. A main-branch run that publishes at least one article and only otherwise records keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` when no article paths changed, and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
+If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures still mark that keyword `failed` and the batch continues. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`, without `temperature`). Client-side SDK errors are `LLMAPIError`. If OpenAI failed for quota or billing, or both providers fail for quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`. A live batch that selects keywords and publishes none exits 2, including an all-quality-gate failure. Later commit steps are skipped, so a drained balance or a zero-MDX batch cannot land a commit. A main-branch run that writes MDX commits those files together with the database and can call the deploy hook. Before that commit, `python apps/bot/check_content_mdx.py` rejects MDX the quality gate would fail. When `apps/web/content` changed, the job also installs `apps/web` and runs `npm run check:mdx`, which renders every article with the site MDX compiler. Either check failing skips the commit, so a broken article cannot take down the Vercel build. A main-branch run that publishes at least one article and only otherwise records keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` when no article paths changed, and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
 
 ```yaml
 name: Bot - Daily Article Generation
@@ -243,6 +244,21 @@ jobs:
         run: |
           echo "bot_batch=$BOT_BATCH ref=$GITHUB_REF"
           python apps/bot/main.py --batch "$BOT_BATCH"
+      - name: Reject MDX that would fail the site build
+        run: python apps/bot/check_content_mdx.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Compile changed content MDX
+        run: |
+          if git status --porcelain -- apps/web/content | grep -q .; then
+            npm ci --prefix apps/web
+            npm run check:mdx --prefix apps/web
+          else
+            echo "No content changes to compile"
+          fi
       - name: Checkpoint keyword database
         run: |
           python - <<'PY'
