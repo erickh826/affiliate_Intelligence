@@ -54,6 +54,21 @@ jobs:
         run: |
           echo "bot_batch=$BOT_BATCH ref=$GITHUB_REF"
           python apps/bot/main.py --batch "$BOT_BATCH"
+      - name: Reject MDX that would fail the site build
+        run: python apps/bot/check_content_mdx.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Compile changed content MDX
+        run: |
+          if git status --porcelain -- apps/web/content | grep -q .; then
+            npm ci --prefix apps/web
+            npm run check:mdx --prefix apps/web
+          else
+            echo "No content changes to compile"
+          fi
       - name: Checkpoint keyword database
         run: |
           python - <<'PY'

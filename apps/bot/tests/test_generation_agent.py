@@ -144,6 +144,9 @@ class TestSectionPrompt:
         assert "PROHIBIT raw HTML tags" in _SYSTEM_SECTION
         assert "ESCAPE curly braces" in _SYSTEM_SECTION
         assert "do not escape approved placeholders like {{LINK_*}}" in _SYSTEM_SECTION
+        assert "ESCAPE a bare less-than" in _SYSTEM_SECTION
+        assert "\\<30" in _SYSTEM_SECTION
+        assert "\\<$10" in _SYSTEM_SECTION
 
 
 class TestValidateOutline:

@@ -9,6 +9,8 @@ from typing import Any
 
 import jsonschema
 
+from mdx_safety import sanitize_mdx
+
 _LOG = logging.getLogger(__name__)
 
 _OUTLINE_MODEL = "gpt-4o-mini"
@@ -20,7 +22,11 @@ _MDX_SAFETY = (
     "MDX SAFETY RULES:\n"
     "1. ONLY use approved MDX components: <AffiliateCTA />.\n"
     "2. PROHIBIT raw HTML tags (e.g., <div>, <span>).\n"
-    "3. ESCAPE curly braces used in normal prose as \\{ and \\}; do not escape approved placeholders like {{LINK_*}} or approved MDX component props.\n"
+    "3. ESCAPE curly braces used in normal prose as \\{ and \\}; do not escape "
+    "approved placeholders like {{LINK_*}} or approved MDX component props.\n"
+    "4. ESCAPE a bare less-than that is not an approved component, including "
+    "prices and comparisons such as \\<30, \\<$10, and \\<=. Put code that "
+    "must contain raw < or { inside fenced code blocks.\n"
 )
 
 _SYSTEM_OUTLINE = (
@@ -251,6 +257,29 @@ def _dry_run_outline(keyword: str, intent: str) -> dict[str, Any]:
     return result
 
 
+def _sanitize_outline_mdx(outline: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(outline, dict):
+        return outline
+    h1 = outline.get("h1")
+    if isinstance(h1, str):
+        outline["h1"] = sanitize_mdx(h1)
+    sections = outline.get("sections")
+    if isinstance(sections, list):
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            h2 = section.get("h2")
+            if isinstance(h2, str):
+                section["h2"] = sanitize_mdx(h2)
+            h3s = section.get("h3s")
+            if isinstance(h3s, list):
+                section["h3s"] = [
+                    sanitize_mdx(item) if isinstance(item, str) else item
+                    for item in h3s
+                ]
+    return outline
+
+
 def _dry_run_section(h2: str, h3s: list[str]) -> dict[str, Any]:
     base = (
         f"This section covers {h2}. "
@@ -445,7 +474,10 @@ async def _write_one_section(
 ) -> dict[str, Any]:
     async with sem:
         if dry_run:
-            return _dry_run_section(h2, h3s)
+            section = _dry_run_section(h2, h3s)
+            section["h2"] = sanitize_mdx(str(section["h2"]))
+            section["content"] = sanitize_mdx(str(section["content"]))
+            return section
         try:
             content = await _call_anthropic_section(
                 h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
@@ -467,9 +499,10 @@ async def _write_one_section(
                     "Section generation failed: "
                     f"{anthropic_exc}; openai fallback failed: {openai_exc}"
                 ) from openai_exc
+        content = sanitize_mdx(content)
         return {
-            "h2": h2,
-            "h3s": h3s,
+            "h2": sanitize_mdx(h2),
+            "h3s": [sanitize_mdx(item) for item in h3s],
             "content": content,
             "word_count": len(content.split()),
         }
@@ -533,14 +566,16 @@ async def generate_outline(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     if dry_run:
-        outline = _dry_run_outline(keyword, intent)
+        outline = _sanitize_outline_mdx(_dry_run_outline(keyword, intent))
         _validate_outline(outline)
         return outline
 
     summary = _summarise_research(research_bundle)
     last_error: ValidationError | None = None
     for _attempt in range(3):
-        outline = _normalize_outline(await _load_outline(keyword, intent, summary))
+        outline = _sanitize_outline_mdx(
+            _normalize_outline(await _load_outline(keyword, intent, summary))
+        )
         try:
             _validate_outline(outline)
         except ValidationError as exc:

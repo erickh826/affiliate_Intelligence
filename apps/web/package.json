@@ -10,7 +10,8 @@
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:mdx": "node scripts/compile-content-mdx.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",

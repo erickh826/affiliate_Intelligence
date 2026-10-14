@@ -17,6 +17,7 @@ _LOG = logging.getLogger(__name__)
 _DEPLOY_RETRY_DELAY = 60.0
 
 from db_setup import DB_PATH
+from mdx_safety import prepare_written_mdx
 from models import AffiliateMap, ArticleArtifact, FAQItem, Frontmatter
 from quality_gate import QAResult
 
@@ -120,12 +121,12 @@ def _build_mdx_body(article: dict[str, Any]) -> str:
     if not isinstance(sections, list) or not sections:
         raise MDXWriterError("article sections must be a non-empty list")
 
-    parts: list[str] = [f"# {_article_field(article, 'h1')}"]
+    parts: list[str] = [f"# {prepare_written_mdx(_article_field(article, 'h1'))}"]
     for section in sections:
         if not isinstance(section, dict):
             raise MDXWriterError("article section must be an object")
-        h2 = _article_field(section, "h2")
-        content = _article_field(section, "content")
+        h2 = prepare_written_mdx(_article_field(section, "h2"))
+        content = prepare_written_mdx(_article_field(section, "content"))
         parts.append(f"## {h2}\n\n{content}")
 
     return "\n\n".join(parts)
