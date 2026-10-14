@@ -16,8 +16,8 @@ from urllib.error import URLError
 _LOG = logging.getLogger(__name__)
 _DEPLOY_RETRY_DELAY = 60.0
 
-from affiliates import category_has_enabled_program
 from db_setup import DB_PATH
+from mdx_safety import prepare_written_mdx
 from models import AffiliateMap, ArticleArtifact, FAQItem, Frontmatter
 from quality_gate import QAResult
 
@@ -129,12 +129,12 @@ def _build_mdx_body(article: dict[str, Any]) -> str:
     if not isinstance(sections, list) or not sections:
         raise MDXWriterError("article sections must be a non-empty list")
 
-    parts: list[str] = [f"# {_article_field(article, 'h1')}"]
+    parts: list[str] = [f"# {prepare_written_mdx(_article_field(article, 'h1'))}"]
     for section in sections:
         if not isinstance(section, dict):
             raise MDXWriterError("article section must be an object")
-        h2 = _article_field(section, "h2")
-        content = _article_field(section, "content")
+        h2 = prepare_written_mdx(_article_field(section, "h2"))
+        content = prepare_written_mdx(_article_field(section, "content"))
         parts.append(f"## {h2}\n\n{content}")
 
     return "\n\n".join(parts)
@@ -185,15 +185,8 @@ def _qa_should_skip(qa_result: QAResult) -> bool:
     )
 
 
-def article_is_draft(
-    qa_result: QAResult,
-    category: str,
-    *,
-    affiliates_path: Path | None = None,
-) -> bool:
-    if qa_result.overall in {"WARN", "FAIL"}:
-        return True
-    return not category_has_enabled_program(category, affiliates_path)
+def article_is_draft(qa_result: QAResult) -> bool:
+    return qa_result.overall in {"WARN", "FAIL"}
 
 
 def _update_written_status(
@@ -266,7 +259,6 @@ def write_article(
     affiliate_map_root: Path = _AFFILIATE_MAP_ROOT,
     deploy_post: DeployPost = _default_deploy_post,
     today: date | None = None,
-    affiliates_path: Path | None = None,
 ) -> MDXWriteResult:
     slug = str(artifact.get("slug") or "").strip()
     if not slug:
@@ -278,7 +270,7 @@ def write_article(
     category = str(artifact.get("category") or "").strip()
     if not category:
         raise MDXWriterError("missing article field: category")
-    draft = article_is_draft(qa_result, category, affiliates_path=affiliates_path)
+    draft = article_is_draft(qa_result)
 
     if dry_run:
         return MDXWriteResult(slug=slug, skipped=False, draft=draft)

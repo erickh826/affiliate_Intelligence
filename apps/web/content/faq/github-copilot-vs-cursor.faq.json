@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What are the main differences between GitHub Copilot and Cursor?"
+    },
+    {
+      "answer": "",
+      "question": "Which AI coding assistant is more popular among developers?"
+    },
+    {
+      "answer": "",
+      "question": "How do GitHub Copilot and Cursor handle code debugging?"
+    },
+    {
+      "answer": "",
+      "question": "What pricing options are available for GitHub Copilot and Cursor?"
+    },
+    {
+      "answer": "",
+      "question": "Which tool is better for beginners in coding?"
+    }
+  ],
+  "slug": "github-copilot-vs-cursor"
+}

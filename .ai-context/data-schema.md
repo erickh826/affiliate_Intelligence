@@ -95,7 +95,7 @@ pending ──► generating ──► published ──► needs_rewrite ──�
 - `published` — Article live on website.
 - `needs_rewrite` — Flagged by GSC feedback loop (high impressions, low CTR).
 - `failed` — Duplicate detection or a pipeline error. Not auto-retried.
-- `draft` — MDX written with `draft: true` (QA WARN/FAIL, or the category has no enabled affiliate program). Not selected again. The site lists it only after frontmatter `draft` is set to `false`.
+- `draft` — MDX written with `draft: true` after QA WARN or FAIL. Not selected again. The site lists it only after frontmatter `draft` is set to `false`. A PASS article is published even when its category has no enabled affiliate program.
 
 ### `slug`
 - Derived from keyword: lowercase, spaces→hyphens, strip special chars.

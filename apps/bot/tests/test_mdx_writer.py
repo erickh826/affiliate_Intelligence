@@ -132,7 +132,7 @@ def test_frontmatter_fields_match_spec_01_section_8_1(
         "schema_type",
         "draft",
     ]
-    assert "draft: true" in mdx
+    assert "draft: false" in mdx
     assert 'published_at: "2026-05-17"' in mdx
 
 
@@ -303,28 +303,6 @@ def test_dry_run_skips_deploy_and_db_update(tmp_path: Path, monkeypatch: Any) ->
     assert not (tmp_path / "affiliate_map").exists()
 
 
-def _enabled_affiliates(path: Path) -> Path:
-    path.write_text(
-        json.dumps(
-            {
-                "programs": [
-                    {
-                        "id": "jasper",
-                        "name": "Jasper AI",
-                        "category": "ai-writing",
-                        "url": "https://jasper.ai/?via=test",
-                        "promo_code": "",
-                        "anchor": "Try Jasper",
-                        "enabled": True,
-                    }
-                ]
-            }
-        ),
-        encoding="utf-8",
-    )
-    return path
-
-
 def test_publish_updates_db_status_and_published_at(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -342,7 +320,6 @@ def test_publish_updates_db_status_and_published_at(
         affiliate_map_root=tmp_path / "affiliate_map",
         deploy_post=calls.append,
         today=date(2026, 5, 17),
-        affiliates_path=_enabled_affiliates(tmp_path / "affiliates.json"),
     )
 
     with sqlite3.connect(db_path) as conn:
@@ -356,6 +333,32 @@ def test_publish_updates_db_status_and_published_at(
     assert result.deploy_triggered is True
     assert result.draft is False
     assert calls == ["https://deploy.example/hook"]
+    assert "draft: false" in mdx
+    assert row == ("published", "2026-05-17")
+
+
+def test_pass_publishes_when_no_program_is_enabled(tmp_path: Path) -> None:
+    db_path = tmp_path / "keywords.db"
+    _db_with_keyword(db_path)
+    qa_result = _qa_result()
+
+    result = write_article(
+        _artifact(_article(), qa_result),
+        dry_run=False,
+        db_path=db_path,
+        content_root=tmp_path / "content",
+        affiliate_map_root=tmp_path / "affiliate_map",
+        today=date(2026, 5, 17),
+    )
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT status, published_at FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+
+    mdx = result.mdx_path.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    assert result.draft is False
     assert "draft: false" in mdx
     assert row == ("published", "2026-05-17")
 
@@ -380,7 +383,6 @@ def test_deploy_hook_failure_keeps_published_status(
         affiliate_map_root=tmp_path / "affiliate_map",
         deploy_post=fail,
         today=date(2026, 5, 17),
-        affiliates_path=_enabled_affiliates(tmp_path / "affiliates.json"),
     )
 
     with sqlite3.connect(db_path) as conn:

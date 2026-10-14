@@ -83,6 +83,32 @@ def test_focus_batch_comes_mostly_from_writing_and_seo(tmp_path: Path) -> None:
     assert sum(mix.values()) == 5
 
 
+def test_ai_image_keywords_stay_out_of_the_rotation(tmp_path: Path) -> None:
+    path = tmp_path / "weights.json"
+    _config(path)
+    config = load_weight_config(path)
+    rows = [
+        _row("midjourney-pending", "ai-image", volume=9000),
+        _row("writing", "ai-writing", volume=100),
+        _row("seo", "seo", volume=100),
+    ]
+    chosen, mode = choose_keywords(
+        rows,
+        5,
+        published_counts={"ai-writing": 0, "seo": 0, "ai-image": 3},
+        config=config,
+    )
+    assert mode == "focus"
+    assert [row["slug"] for row in chosen] == ["writing", "seo"]
+    image = tmp_path / "ai-image"
+    image.mkdir()
+    (image / "midjourney-review-2026.mdx").write_text(
+        "---\ncategory: ai-image\n---\n",
+        encoding="utf-8",
+    )
+    assert count_live_articles(tmp_path) == {"ai-image": 1}
+
+
 def test_even_batch_rotates_across_categories(tmp_path: Path) -> None:
     path = tmp_path / "weights.json"
     _config(path)

@@ -133,7 +133,7 @@ Referral URLs live in one file, `monetisation/affiliates.json`. Each program has
 | `ai-productivity` | Productivity & Automation | Notion, Zapier |
 | `ai-code` | AI Code | none yet |
 
-Articles store `affiliate_partner: "{id}"`. CTAs render from this file with `rel="sponsored"`. An article is written as a draft when its category has no enabled program.
+Articles store `affiliate_partner: "{id}"`. CTAs render from this file with `rel="sponsored"` only when that program is `enabled`. A disabled or placeholder program publishes the article with no affiliate link. Drafts are reserved for QA WARN and FAIL.
 
 ### 5.2 Per-article program id
 

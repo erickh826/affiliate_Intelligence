@@ -253,7 +253,6 @@ async def _process_one(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
-    affiliates_path: Path | None,
 ) -> str:
     slug = str(row.get("slug") or row.get("keyword", "unknown"))
     step = "research"
@@ -305,7 +304,6 @@ async def _process_one(
             db_path=db_path,
             content_root=content_root,
             affiliate_map_root=affiliate_map_root,
-            affiliates_path=affiliates_path,
         )
     except ProviderOutageError as exc:
         _release_keyword(km, row)
@@ -422,7 +420,6 @@ async def _run_batch(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
-    affiliates_path: Path | None,
 ) -> list[str]:
     articles_written: list[dict[str, Any]] = []
     results = []
@@ -437,7 +434,6 @@ async def _run_batch(
             km=km,
             failed_steps=failed_steps,
             error_types=error_types,
-            affiliates_path=affiliates_path,
         )
         results.append(outcome)
         if outcome == "outage":
@@ -465,7 +461,6 @@ def run(
     db_path: Path = DB_PATH,
     content_root: Path = _DEFAULT_CONTENT_ROOT,
     affiliate_map_root: Path = _DEFAULT_AFFILIATE_MAP_ROOT,
-    affiliates_path: Path | None = None,
     published_counts: Mapping[str, int] | None = None,
 ) -> int:
     _configure_logging()
@@ -521,7 +516,6 @@ def run(
                 km=km,
                 failed_steps=failed_steps,
                 error_types=error_types,
-                affiliates_path=affiliates_path,
             )
         )
 

@@ -88,8 +88,7 @@
    → Check: word count, uniqueness, banned phrases, keyword in H1, FAQ count
    → duplicate FAIL → status='failed', skip article
    → other FAIL or WARN → write MDX with draft: true, status='draft'
-   → PASS and category has an enabled affiliate → publish
-   → PASS and no enabled affiliate → draft
+   → PASS → publish, with an affiliate CTA only when that program is enabled
 
 5. mdx_writer.py
    → Write apps/web/content/{category}/{slug}.mdx

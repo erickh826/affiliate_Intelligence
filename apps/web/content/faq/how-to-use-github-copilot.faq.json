@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What is GitHub Copilot?"
+    },
+    {
+      "answer": "",
+      "question": "How do I install GitHub Copilot?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use GitHub Copilot for free?"
+    },
+    {
+      "answer": "",
+      "question": "What programming languages does GitHub Copilot support?"
+    },
+    {
+      "answer": "",
+      "question": "How does GitHub Copilot improve coding efficiency?"
+    }
+  ],
+  "slug": "how-to-use-github-copilot"
+}

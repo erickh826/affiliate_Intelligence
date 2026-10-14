@@ -7,12 +7,13 @@ from math import sqrt
 from pathlib import Path
 from typing import Any, Literal
 
+from mdx_safety import mdx_syntax_issues
+
 Result = Literal["PASS", "FAIL", "WARN"]
 Action = Literal["none", "regenerate", "skip", "auto-fix", "rewrite-section", "log"]
 
 _CONFIG_DIR = Path(__file__).parent / "config"
 _BANNED_PHRASES_PATH = _CONFIG_DIR / "banned_phrases.txt"
-_APPROVED_MDX_COMPONENTS = frozenset({"AffiliateCTA", "Image"})
 
 
 def _load_banned_phrases(path: Path = _BANNED_PHRASES_PATH) -> list[str]:
@@ -38,7 +39,6 @@ _FACTUAL_RE = re.compile(
 
 _LINK_PLACEHOLDER_RE = re.compile(r"\{\{LINK_[A-Z0-9_]+\}\}")
 _TOKEN_RE = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?", re.IGNORECASE)
-_TAG_RE = re.compile(r"</?([A-Za-z][A-Za-z0-9]*)\b[^>]*>")
 _SENTENCE_RE = re.compile(r"[.!?]+")
 _SYLLABLE_RE = re.compile(r"[aeiouy]+", re.IGNORECASE)
 _IMAGE_PLACEHOLDER_RE = re.compile(
@@ -272,25 +272,28 @@ def _check_internal_links(article: dict[str, Any]) -> CheckResult:
     )
 
 
+def _mdx_fields(article: dict[str, Any]) -> list[str]:
+    fields: list[str] = []
+    h1 = article.get("h1")
+    if isinstance(h1, str):
+        fields.append(h1)
+    for section in article.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        h2 = section.get("h2")
+        content = section.get("content")
+        if isinstance(h2, str):
+            fields.append(h2)
+        if isinstance(content, str):
+            fields.append(content)
+    return fields
+
+
 def _check_mdx_syntax(article: dict[str, Any]) -> CheckResult:
-    text = _full_text(article)
-    for match in _TAG_RE.finditer(text):
-        component = match.group(1)
-        tag = match.group(0)
-        if component not in _APPROVED_MDX_COMPONENTS:
-            return CheckResult(
-                "mdx_syntax",
-                "FAIL",
-                f"raw or unapproved tag found: {tag}",
-                "regenerate",
-            )
-        if tag.startswith("</") or not tag.endswith("/>"):
-            return CheckResult(
-                "mdx_syntax",
-                "FAIL",
-                f"approved component must be self-closing: {tag}",
-                "regenerate",
-            )
+    for source in _mdx_fields(article):
+        issues = mdx_syntax_issues(source)
+        if issues:
+            return CheckResult("mdx_syntax", "FAIL", issues[0], "regenerate")
     return CheckResult("mdx_syntax", "PASS", "MDX syntax preflight passed", "none")
 
 
