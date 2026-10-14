@@ -170,6 +170,9 @@ Any FAIL → article marked `status=failed`, pipeline skips it.
 | FAQ count | ≥ 4 questions | FAIL → regenerate |
 | Broken internal links | Zero | WARN → log |
 | AI filler phrase count | < 3 instances | WARN → rewrite section |
+| MDX syntax | Approved self-closing components only (`AffiliateCTA`, `Image`). No raw HTML. No MDX-breaking `<` (`<30`, `<$10`, `<=`) or unescaped `{` `}` outside fenced code, inline code, link destinations, and component props | FAIL → regenerate |
+
+Section text is escaped when it is generated and again when the MDX file is written. A `<` that is not a complete JSX tag is stored as `\<` (so `<30` and `<$10` cannot abort `next build`). Prose braces are stored as `\{` and `\}`. Fenced code, inline code, `{{LINK_*}}` / `{{IMAGE_*}}` placeholders, and approved self-closing components are left intact. Placeholders that sit in prose, where MDX would evaluate them, still fail this check. `python apps/bot/check_content_mdx.py` runs the same check on `apps/web/content/**/*.mdx`. The daily bot runs it before commit, and `apps/web` CI renders every article with `@mdx-js/mdx` before `next build`.
 
 ### Banned Phrases
 
