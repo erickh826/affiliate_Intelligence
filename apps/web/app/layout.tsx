@@ -1,14 +1,29 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import GoogleAnalytics from '../components/GoogleAnalytics';
 import SiteFooter from '../components/blog/SiteFooter';
 import SiteHeader from '../components/blog/SiteHeader';
 import { getSiteName, getSiteUrl } from '../lib/site';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
+const inter = localFont({
+  src: [
+    {
+      path: './fonts/inter-latin-400-normal.woff2',
+      weight: '400',
+      style: 'normal',
+    },
+    {
+      path: './fonts/inter-latin-600-normal.woff2',
+      weight: '600',
+      style: 'normal',
+    },
+    {
+      path: './fonts/inter-latin-700-normal.woff2',
+      weight: '700',
+      style: 'normal',
+    },
+  ],
   variable: '--font-inter',
   display: 'swap',
 });
