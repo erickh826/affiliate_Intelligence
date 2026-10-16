@@ -5,6 +5,7 @@ import {
   getFAQBySlug,
   getMDXDataBySlug,
   getHeadings,
+  isDraft,
   neutralizeUnresolvedLinks,
   splitAtH2,
 } from '../lib/mdx';
@@ -50,6 +51,15 @@ describe('mdx loader', () => {
     expect(
       articles.every((article) => article.frontmatter.category !== 'faq'),
     ).toBe(true);
+  });
+});
+
+describe('isDraft', () => {
+  it('treats a missing flag as published and true as a draft', () => {
+    expect(isDraft({})).toBe(false);
+    expect(isDraft({ draft: false })).toBe(false);
+    expect(isDraft({ draft: true })).toBe(true);
+    expect(isDraft({ draft: 'true' })).toBe(true);
   });
 });
 

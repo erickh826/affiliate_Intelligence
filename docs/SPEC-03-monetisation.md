@@ -114,14 +114,28 @@ For each program:
 1. Apply with website URL (must have 10+ relevant articles live)
 2. Description: "AI tools comparison site for developers and marketers"
 3. Submit any required tax form (usually W-8BEN or equivalent)
-4. Upon approval: get tracking links → add to `monetisation/affiliate_map/`
-5. Run `python apps/bot/mdx_writer.py --update-ctas` to inject links into existing articles
+4. Upon approval: paste the referral URL and promo code into `monetisation/affiliates.json` and set `enabled` to `true`
+5. Rebuild the site. Existing articles reference the program id, so their CTAs pick up the new URL without an MDX edit
 
 ---
 
 ## 5. CTA Injection Configuration
 
-### 5.1 Affiliate Map File Format
+### 5.1 Central program config
+
+Referral URLs live in one file, `monetisation/affiliates.json`. Each program has `id`, `name`, `category`, `url`, `promo_code`, `anchor`, and `enabled`. Placeholder URLs use `YOUR_REF` and `enabled: false` until a real link is approved.
+
+| Category slug | Label | Programs |
+|---|---|---|
+| `ai-writing` | AI Writing | Jasper, Writesonic, Copy.ai |
+| `seo` | SEO | Surfer SEO, Semrush, Ahrefs |
+| `ai-video` | AI Voice & Video | ElevenLabs, Descript |
+| `ai-productivity` | Productivity & Automation | Notion, Zapier |
+| `ai-code` | AI Code | none yet |
+
+Articles store `affiliate_partner: "{id}"`. CTAs render from this file with `rel="sponsored"` only when that program is `enabled`. A disabled or placeholder program publishes the article with no affiliate link. Drafts are reserved for QA WARN and FAIL.
+
+### 5.2 Per-article program id
 
 ```json
 // monetisation/affiliate_map/best-ai-writing-tools.json
@@ -150,7 +164,7 @@ For each program:
 }
 ```
 
-### 5.2 A/B Testing (Phase 3+)
+### 5.3 A/B Testing (Phase 3+)
 
 `variant` field controls active test. `apps/bot/cta_rotator.py` swaps variants weekly:
 - Variant A: action text ("Start Free Trial →")
@@ -188,7 +202,7 @@ month,adsense_usd,jasper_usd,writesonic_usd,surfer_usd,elevenlabs_usd,total_usd
 
 | Requirement | Implementation |
 |---|---|
-| FTC affiliate disclosure | Sticky banner on every comparison page |
+| FTC affiliate disclosure | `/affiliate-disclosure`, footer link, and a one-line notice at the top of any article that renders an affiliate CTA |
 | GDPR cookie consent | CookieYes banner on first visit |
 | Affiliate link transparency | `rel="sponsored"` on all affiliate `<a>` tags |
 | AdSense policies | No click fraud, no incentivised clicks |

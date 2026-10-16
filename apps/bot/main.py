@@ -9,6 +9,7 @@ import platform
 import re
 import traceback
 from collections import Counter
+from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
@@ -401,6 +402,7 @@ async def _process_one(
                 "qa_overall": qa_result.overall,
                 "skipped": False,
                 "mdx_path": str(result.mdx_path) if result.mdx_path else None,
+                "draft": result.draft,
                 "checks_failed": sum(1 for c in qa_result.checks if c.result == "FAIL"),
             }
         )
@@ -459,12 +461,18 @@ def run(
     db_path: Path = DB_PATH,
     content_root: Path = _DEFAULT_CONTENT_ROOT,
     affiliate_map_root: Path = _DEFAULT_AFFILIATE_MAP_ROOT,
+    published_counts: Mapping[str, int] | None = None,
 ) -> int:
     _configure_logging()
     with KeywordManager(db_path) as km:
-        rows = km.select_keywords(batch)
+        rows = km.select_keywords(
+            batch,
+            content_root=content_root,
+            published_counts=published_counts,
+        )
         failed_steps: list[str] = []
         error_types: list[str] = []
+        category_mix = dict(Counter(str(row.get("category") or "") for row in rows))
         _LOG.info(
             json.dumps(
                 {
@@ -472,9 +480,19 @@ def run(
                     "batch": batch,
                     "dry_run": dry_run,
                     "selected": len(rows),
+                    "weight_mode": km.last_weight_mode,
+                    "category_mix": category_mix,
                     "runtime": _runtime_context(),
                 }
             )
+        )
+        _LOG.info(
+            "category_mix mode=%s %s",
+            km.last_weight_mode,
+            " ".join(
+                f"{category}={count}"
+                for category, count in sorted(category_mix.items())
+            ),
         )
         if not rows:
             _log_batch_finished(

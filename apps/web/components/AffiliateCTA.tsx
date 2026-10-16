@@ -3,6 +3,7 @@ interface AffiliateCTAProps {
   text: string;
   partner: string;
   placement: 'top' | 'inline' | 'bottom';
+  promoCode?: string;
 }
 
 export default function AffiliateCTA({
@@ -10,7 +11,9 @@ export default function AffiliateCTA({
   text,
   partner,
   placement,
+  promoCode,
 }: AffiliateCTAProps) {
+  const code = promoCode?.trim();
   if (placement === 'top') {
     return (
       <div className="my-6 p-4 bg-accent/10 border border-accent/30 rounded-lg flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -26,6 +29,7 @@ export default function AffiliateCTA({
           We may earn a commission if you click this link.{' '}
           <span className="capitalize">{partner.replace(/_/g, ' ')}</span> is an
           affiliate partner.
+          {code ? ` Promo code: ${code}.` : ''}
         </p>
       </div>
     );
@@ -35,6 +39,7 @@ export default function AffiliateCTA({
     <div className="my-8 p-5 bg-surface border border-border rounded-lg">
       <p className="text-sm text-secondary mb-3">
         We may earn a commission if you click this link.
+        {code ? ` Promo code: ${code}.` : ''}
       </p>
       <a
         href={href}

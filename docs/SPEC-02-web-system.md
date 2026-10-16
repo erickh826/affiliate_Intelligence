@@ -33,7 +33,8 @@ SPEC-02 defines the web publishing layer. It takes MDX + metadata from SPEC-01 a
 /about/                 ← Author bio (E-E-A-T signal, AdSense required)
 /contact/               ← Contact form (AdSense required)
 /privacy-policy/        ← AdSense required
-/disclaimer/            ← Affiliate disclosure
+/disclaimer/            ← Editorial disclaimer
+/affiliate-disclosure/  ← Affiliate disclosure
 /sitemap.xml            ← Auto-generated
 /robots.txt             ← Allow all crawlers
 ```
@@ -75,7 +76,7 @@ Each `.mdx` renders as a static page via `generateStaticParams`. Frontmatter map
 
 ### 4.2 Affiliate CTA Injection
 
-`lib/cta_injector.ts` reads `monetisation/affiliate_map/[slug].json` at build time:
+`lib/cta_injector.ts` reads the article's `affiliate_partner` id and loads the URL, anchor, and promo code from `monetisation/affiliates.json`. Per-article `affiliate_map` files only store the program id. A disabled program renders the newsletter fallback. Changing a referral link is a config edit, not an MDX edit.
 
 | Placement | Position |
 |---|---|
@@ -119,7 +120,7 @@ Articles with `[slug].faq.json` inject into `<head>`:
 
 | Requirement | Implementation |
 |---|---|
-| Sitemap | `/sitemap.xml` via `next-sitemap` in `postbuild`. Includes static routes plus one URL per published MDX article and its category index. `public/sitemap*.xml` and `public/robots.txt` are gitignored build output. `siteUrl` is `NEXT_PUBLIC_SITE_URL`, then `https://$VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`. |
+| Sitemap | `/sitemap.xml` via `next-sitemap` in `postbuild`. Includes static routes plus one URL per published MDX article and its category index. Articles with `draft: true` are omitted, and a category made only of drafts is omitted. `public/sitemap*.xml` and `public/robots.txt` are gitignored build output. `siteUrl` is `NEXT_PUBLIC_SITE_URL`, then `https://$VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`. |
 | robots.txt | Allows all crawlers and points `Sitemap:` at `{siteUrl}/sitemap.xml` |
 | Canonical | Exact page URL on all pages |
 | Structured data | FAQPage, BreadcrumbList, Article schema |
@@ -146,9 +147,9 @@ Implementation: `next/image` with width/height, `font-display: swap`, `content-v
 | Author byline | Every article: `By [Name]` linked to About page |
 | Last reviewed date | Displayed near title |
 | Expertise proof | Technical depth: API cost tables, code snippets, real testing notes |
-| Affiliate disclosure | Sticky banner on comparison pages |
+| Affiliate disclosure | Standalone `/affiliate-disclosure` page, linked from the footer. Articles that render an affiliate CTA also show a one-line disclosure at the top linking to that page. Comparison pages keep the sticky banner. |
 | Contact page | Working form (Formspree) |
-| Privacy Policy | GDPR + AdSense + cookie disclosure |
+| Privacy Policy | GDPR + AdSense + cookie disclosure, linked from the footer |
 
 ---
 

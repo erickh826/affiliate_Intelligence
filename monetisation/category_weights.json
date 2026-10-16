@@ -1,0 +1,25 @@
+{
+  "published_target": 10,
+  "focus_categories": ["ai-writing", "seo"],
+  "categories": [
+    "ai-writing",
+    "seo",
+    "ai-video",
+    "ai-productivity",
+    "ai-code"
+  ],
+  "focus_weights": {
+    "ai-writing": 45,
+    "seo": 45,
+    "ai-video": 4,
+    "ai-productivity": 3,
+    "ai-code": 3
+  },
+  "even_weights": {
+    "ai-writing": 1,
+    "seo": 1,
+    "ai-video": 1,
+    "ai-productivity": 1,
+    "ai-code": 1
+  }
+}

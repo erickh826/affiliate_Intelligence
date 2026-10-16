@@ -16,7 +16,7 @@ SPEC-01 defines the automated content generation pipeline. It reads keyword targ
 ```
 data/keywords.db (status=pending)
          │
-[1] Keyword Selector ── picks N rows by volume/difficulty ratio
+[1] Keyword Selector ── category-weighted batch, then volume/difficulty ratio
          │
 [2] Research Agent ── Firecrawl top-5 SERPs + Perplexity API
          │
@@ -44,7 +44,9 @@ Reads from `data/keywords.db` via SQLite. Selection criteria:
 - `monthly_volume > 100`
 - `difficulty < 45`
 
-Priority score: `volume / (difficulty + 1)` — highest selected first.
+Priority score: `volume / (difficulty + 1)` — highest selected first inside a category.
+
+Category mix is controlled by `monetisation/category_weights.json`. While either focus category (`ai-writing`, `seo`) has fewer than `published_target` live articles (default 10, counted from MDX whose `draft` is not true), the batch uses `focus_weights` so most keywords come from AI Writing and SEO. After both reach the target, the batch uses `even_weights` and rotates across `ai-writing`, `seo`, `ai-video`, `ai-productivity`, and `ai-code`. Slots a category cannot fill spill into the other configured categories. `ai-image` stays in the database and is not part of this rotation.
 
 Batch limits:
 - Dev: 3 articles/run
@@ -122,7 +124,7 @@ user_prompt = (
 
 Output validated against `outline_schema.json` before proceeding.
 
-If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. The Anthropic outline request does not send `temperature`; `anthropic` 1.x removed that argument, and `anthropic` and `openai` are pinned in `apps/bot/requirements.txt`. Client-side SDK errors (`TypeError`, `ValueError`) are raised as `LLMAPIError`. No extra secret is required. When the OpenAI failure is quota or billing, including when the Anthropic call then fails as an `LLMAPIError`, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2. A live batch that selects keywords and publishes none also exits 2, so the cron does not commit an MDX-less database change. Dry runs and empty selections exit 0. Transient timeouts stay retryable. Quality-gate FAIL still sets `status=failed` on that keyword.
+If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. The Anthropic outline request does not send `temperature`; `anthropic` 1.x removed that argument, and `anthropic` and `openai` are pinned in `apps/bot/requirements.txt`. Client-side SDK errors (`TypeError`, `ValueError`) are raised as `LLMAPIError`. No extra secret is required. When the OpenAI failure is quota or billing, including when the Anthropic call then fails as an `LLMAPIError`, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2. A live batch that selects keywords and writes no MDX also exits 2, so the cron does not commit an MDX-less database change. Draft MDX counts as a successful write for that exit code. Dry runs and empty selections exit 0. Transient timeouts stay retryable. A quality-gate duplicate (`action=skip`) still sets `status=failed` and writes no MDX. Other FAIL and WARN results are written with `draft: true`.
 
 ---
 
@@ -158,7 +160,7 @@ E-E-A-T injection rules per intent:
 
 **File:** `apps/bot/quality_gate.py`
 
-Any FAIL → article marked `status=failed`, pipeline skips it.
+Duplicate FAIL (`action=skip`) → `status=failed`, pipeline skips the write. Any other FAIL or WARN is written with `draft: true` (`status=draft`) and is omitted from listings and the sitemap. PASS is published (`draft: false`) even when the category has no enabled affiliate program. In that case the page renders no affiliate CTA and no placeholder referral URL.
 
 | Check | Threshold | Action |
 |---|---|---|
@@ -213,8 +215,11 @@ last_reviewed: "{date}"
 author: "{author_name}"
 affiliate_partner: "{partner}"
 schema_type: "Article"
+draft: false
 ---
 ```
+
+`affiliate_partner` is the program id in `monetisation/affiliates.json`. The MDX file does not store the referral URL. `draft: true` keeps the article out of the homepage, category indexes, and sitemap. Publish a draft by setting `draft: false` in that frontmatter.
 
 ### 8.2 Output Paths
 

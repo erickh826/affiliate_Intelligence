@@ -86,9 +86,9 @@
 
 4. quality_gate.py
    → Check: word count, uniqueness, banned phrases, keyword in H1, FAQ count
-   → FAIL → status='failed', log reason, skip article
-   → WARN → log, continue
-   → PASS → proceed
+   → duplicate FAIL → status='failed', skip article
+   → other FAIL or WARN → write MDX with draft: true, status='draft'
+   → PASS → publish, with an affiliate CTA only when that program is enabled
 
 5. mdx_writer.py
    → Write apps/web/content/{category}/{slug}.mdx
@@ -106,7 +106,7 @@
 1. Vercel Build
    → next build reads apps/web/content/*.mdx
    → generateStaticParams() creates static pages per category/slug
-   → cta_injector.ts reads affiliate_map/{slug}.json → injects <AffiliateCTA>
+   → cta_injector.ts reads monetisation/affiliates.json by program id → injects <AffiliateCTA>
    → schema_builder.ts generates JSON-LD (Article, FAQPage, BreadcrumbList)
 
 2. Public Site
@@ -203,9 +203,9 @@
 |---|---|---|
 | LLM API down | HTTP 5xx / timeout | Retry 3x with backoff; fallback model per SPEC-01 §10 |
 | OpenAI outline quota exhausted | HTTP 429 `credit_balance_exhausted` | Outline falls back to Anthropic without `temperature`. A client-side SDK error is an `LLMAPIError`. If OpenAI was quota or billing, restore the keyword to `pending` or `needs_rewrite`, exit 2, and do not commit an MDX-less article batch |
-| Live batch published nothing | `selected > 0` and `succeeded == 0` on a non-dry run | Exit 2 so the cron does not commit |
-| Quality gate FAIL | Automated check | Set status='failed', log reason, continue next article |
+| Live batch wrote no MDX | `selected > 0` and `succeeded == 0` on a non-dry run | Exit 2 so the cron does not commit. Draft MDX counts as a write |
+| Quality gate duplicate | Cosine similarity > 0.85 | Skip article, mark status='failed' |
+| Quality gate WARN or other FAIL | Automated check | Write MDX with draft: true, status='draft', continue |
 | Vercel deploy fail | Deploy hook returns non-200 | Log error, retry once after 60s |
 | GSC API quota exceeded | 403 response | Skip feedback loop, retry next week |
-| Duplicate content detected | Cosine similarity > 0.85 | Skip article, mark status='failed' |
-| Affiliate link broken | Manual audit / 404 check | Update affiliate_map, trigger rebuild |
+| Affiliate link broken | Manual audit / 404 check | Update monetisation/affiliates.json, trigger rebuild |

@@ -32,7 +32,7 @@
 | 4 | `intent` | TEXT | NOT NULL, CHECK(intent IN ('informational','comparison','tutorial')) | SPEC-01 | Search intent classification |
 | 5 | `monthly_volume` | INTEGER | NOT NULL, DEFAULT 0 | SPEC-01 | Estimated monthly search volume |
 | 6 | `difficulty` | INTEGER | NOT NULL, DEFAULT 0, CHECK(difficulty BETWEEN 0 AND 100) | SPEC-01 | Keyword difficulty score (0–100) |
-| 7 | `status` | TEXT | NOT NULL, DEFAULT 'pending', CHECK(status IN ('pending','generating','published','needs_rewrite','failed')) | SPEC-01/02 | Article lifecycle status |
+| 7 | `status` | TEXT | NOT NULL, DEFAULT 'pending', CHECK(status IN ('pending','generating','published','needs_rewrite','failed','draft')) | SPEC-01/02 | Article lifecycle status |
 | 8 | `slug` | TEXT | UNIQUE | SPEC-01 | URL slug (kebab-case, matches MDX filename) |
 | 9 | `published_at` | TEXT | NULL | SPEC-02 | ISO 8601 date (YYYY-MM-DD) when first published |
 | 10 | `gsc_impressions` | INTEGER | DEFAULT 0 | SPEC-02 | Last 7-day impressions from GSC |
@@ -60,7 +60,8 @@
 
 ### `category`
 - Maps directly to URL path segment: `/{category}/{slug}/`.
-- Examples: `ai-writing`, `ai-image`, `ai-video`, `ai-code`, `ai-productivity`.
+- Examples: `ai-writing`, `seo`, `ai-video` (AI Voice & Video), `ai-productivity` (Productivity & Automation), `ai-code`, `ai-image`.
+- Affiliate rotation uses the first five. `ai-image` stays in the database and is not selected by the weighted batch.
 - Must match an existing directory under `web/content/`.
 
 ### `intent`
@@ -93,7 +94,8 @@ pending ──► generating ──► published ──► needs_rewrite ──�
 - `generating` — Claimed by `select_keywords()`; pipeline is actively processing. Prevents double-selection across concurrent runs. Reset to `pending` manually if pipeline crashes.
 - `published` — Article live on website.
 - `needs_rewrite` — Flagged by GSC feedback loop (high impressions, low CTR).
-- `failed` — Quality gate FAIL or duplicate detected. Not auto-retried.
+- `failed` — Duplicate detection or a pipeline error. Not auto-retried.
+- `draft` — MDX written with `draft: true` after QA WARN or FAIL. Not selected again. The site lists it only after frontmatter `draft` is set to `false`. A PASS article is published even when its category has no enabled affiliate program.
 
 ### `slug`
 - Derived from keyword: lowercase, spaces→hyphens, strip special chars.
@@ -160,7 +162,7 @@ CREATE TABLE IF NOT EXISTS keywords (
     intent          TEXT    NOT NULL CHECK(intent IN ('informational','comparison','tutorial')),
     monthly_volume  INTEGER NOT NULL DEFAULT 0,
     difficulty      INTEGER NOT NULL DEFAULT 0 CHECK(difficulty BETWEEN 0 AND 100),
-    status          TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','generating','published','needs_rewrite','failed')),
+    status          TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','generating','published','needs_rewrite','failed','draft')),
     slug            TEXT    UNIQUE,
     published_at    TEXT,
     gsc_impressions INTEGER DEFAULT 0,

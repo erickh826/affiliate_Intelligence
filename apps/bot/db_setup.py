@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS keywords (
     difficulty        INTEGER NOT NULL DEFAULT 0
                               CHECK(difficulty BETWEEN 0 AND 100),
     status            TEXT    NOT NULL DEFAULT 'pending'
-                              CHECK(status IN ('pending','published','needs_rewrite','failed','generating')),
+                              CHECK(status IN ('pending','published','needs_rewrite','failed','generating','draft')),
     slug              TEXT    UNIQUE,
     published_at      TEXT,
     gsc_impressions   INTEGER DEFAULT 0,

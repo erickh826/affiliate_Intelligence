@@ -13,7 +13,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ("copy ai vs jasper", "ai-writing", "comparison", 1900, 25, "jasper"),
     ("writesonic vs copy ai", "ai-writing", "comparison", 1600, 22, "writesonic"),
     ("best ai copywriting tools", "ai-writing", "comparison", 3200, 33, "jasper"),
-    ("surfer seo vs clearscope", "ai-writing", "comparison", 1200, 30, "surfer"),
+    ("surfer seo vs clearscope", "seo", "comparison", 1200, 30, "surfer"),
     (
         "jasper ai vs chatgpt for writing",
         "ai-writing",
@@ -26,8 +26,8 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     # ai-writing — informational
     ("writesonic review 2026", "ai-writing", "informational", 2200, 30, "writesonic"),
     ("jasper ai review 2026", "ai-writing", "informational", 4400, 35, "jasper"),
-    ("copy ai review 2026", "ai-writing", "informational", 1900, 25, None),
-    ("surfer seo review 2026", "ai-writing", "informational", 3300, 30, "surfer"),
+    ("copy ai review 2026", "ai-writing", "informational", 1900, 25, "copy_ai"),
+    ("surfer seo review 2026", "seo", "informational", 3300, 30, "surfer"),
     (
         "ai writing tools for bloggers",
         "ai-writing",
@@ -46,7 +46,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ),
     # ai-writing — tutorial
     ("how to use jasper ai", "ai-writing", "tutorial", 1800, 20, "jasper"),
-    ("how to use surfer seo", "ai-writing", "tutorial", 1100, 22, "surfer"),
+    ("how to use surfer seo", "seo", "tutorial", 1100, 22, "surfer"),
     ("how to write seo articles with ai", "ai-writing", "tutorial", 2600, 30, "jasper"),
     # ai-image — comparison
     ("best ai image generators 2026", "ai-image", "comparison", 9200, 38, None),
@@ -64,7 +64,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ("stable diffusion setup guide", "ai-image", "tutorial", 3200, 28, None),
     # ai-video — comparison
     ("best ai video generators 2026", "ai-video", "comparison", 5500, 35, None),
-    ("descript vs riverside", "ai-video", "comparison", 1800, 25, None),
+    ("descript vs riverside", "ai-video", "comparison", 1800, 25, "descript"),
     ("elevenlabs vs murf ai", "ai-video", "comparison", 1600, 24, "elevenlabs"),
     (
         "ai voice cloning tools comparison",
@@ -79,9 +79,9 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     # ai-video — informational
     ("runway ml review 2026", "ai-video", "informational", 2700, 30, None),
     ("elevenlabs review 2026", "ai-video", "informational", 3900, 32, "elevenlabs"),
-    ("descript review 2026", "ai-video", "informational", 2500, 26, None),
+    ("descript review 2026", "ai-video", "informational", 2500, 26, "descript"),
     # ai-video — tutorial
-    ("how to use descript", "ai-video", "tutorial", 2100, 22, None),
+    ("how to use descript", "ai-video", "tutorial", 2100, 22, "descript"),
     ("how to make ai videos for youtube", "ai-video", "tutorial", 6100, 33, None),
     (
         "elevenlabs voice cloning tutorial",
@@ -114,7 +114,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
         35,
         None,
     ),
-    ("notion ai vs chatgpt", "ai-productivity", "comparison", 3200, 30, None),
+    ("notion ai vs chatgpt", "ai-productivity", "comparison", 3200, 30, "notion"),
     (
         "best ai meeting assistants 2026",
         "ai-productivity",
@@ -125,7 +125,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ),
     ("best ai scheduling tools", "ai-productivity", "comparison", 2600, 28, None),
     # ai-productivity — informational
-    ("notion ai review 2026", "ai-productivity", "informational", 4800, 33, None),
+    ("notion ai review 2026", "ai-productivity", "informational", 4800, 33, "notion"),
     ("otter ai review 2026", "ai-productivity", "informational", 2800, 28, None),
     ("reclaim ai review 2026", "ai-productivity", "informational", 1500, 20, None),
     ("ai tools for solopreneurs", "ai-productivity", "informational", 3200, 32, None),
@@ -135,10 +135,10 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
         "informational",
         2100,
         25,
-        None,
+        "zapier",
     ),
     # ai-productivity — tutorial
-    ("how to use notion ai", "ai-productivity", "tutorial", 3500, 25, None),
+    ("how to use notion ai", "ai-productivity", "tutorial", 3500, 25, "notion"),
     ("otter ai setup guide", "ai-productivity", "tutorial", 1200, 18, None),
     # ai-writing — expansion
     ("rytr vs jasper ai", "ai-writing", "comparison", 1400, 24, "jasper"),
@@ -146,7 +146,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ("grammarly vs jasper ai", "ai-writing", "comparison", 3600, 36, "jasper"),
     ("best ai paraphrasing tools", "ai-writing", "comparison", 2800, 26, None),
     ("best ai blog writing tools 2026", "ai-writing", "comparison", 2400, 31, "jasper"),
-    ("frase vs surfer seo", "ai-writing", "comparison", 1100, 27, "surfer"),
+    ("frase vs surfer seo", "seo", "comparison", 1100, 27, "surfer"),
     ("writesonic vs jasper for blogs", "ai-writing", "comparison", 1300, 23, "jasper"),
     ("best ai headline generators", "ai-writing", "comparison", 1600, 21, None),
     ("grammarly ai review 2026", "ai-writing", "informational", 4100, 34, None),
@@ -162,19 +162,19 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
     ),
     (
         "best ai tools for seo content",
-        "ai-writing",
+        "seo",
         "informational",
         2700,
         33,
         "surfer",
     ),
-    ("clearscope review 2026", "ai-writing", "informational", 1400, 29, None),
-    ("neuronwriter review 2026", "ai-writing", "informational", 860, 20, None),
+    ("clearscope review 2026", "seo", "informational", 1400, 29, "surfer"),
+    ("neuronwriter review 2026", "seo", "informational", 860, 20, "surfer"),
     ("ai content detectors explained", "ai-writing", "informational", 2200, 24, None),
     ("how to use writesonic", "ai-writing", "tutorial", 1600, 21, "writesonic"),
     ("how to use grammarly ai", "ai-writing", "tutorial", 2900, 26, None),
-    ("how to use copy ai", "ai-writing", "tutorial", 1100, 19, None),
-    ("surfer seo content editor tutorial", "ai-writing", "tutorial", 900, 23, "surfer"),
+    ("how to use copy ai", "ai-writing", "tutorial", 1100, 19, "copy_ai"),
+    ("surfer seo content editor tutorial", "seo", "tutorial", 900, 23, "surfer"),
     ("how to humanize ai writing", "ai-writing", "tutorial", 3400, 32, None),
     ("how to fact check ai articles", "ai-writing", "tutorial", 1200, 22, None),
     ("jasper ai brand voice setup guide", "ai-writing", "tutorial", 800, 17, "jasper"),
@@ -239,14 +239,14 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
         26,
         None,
     ),
-    ("kapwing vs descript", "ai-video", "comparison", 980, 22, None),
+    ("kapwing vs descript", "ai-video", "comparison", 980, 22, "descript"),
     ("invideo ai vs pictory", "ai-video", "comparison", 1600, 24, None),
     ("best ai avatar video tools", "ai-video", "comparison", 2300, 30, None),
     ("murf ai vs play ht", "ai-video", "comparison", 900, 21, None),
     ("luma ai vs runway", "ai-video", "comparison", 1800, 27, None),
     ("best ai video editors 2026", "ai-video", "comparison", 2900, 33, None),
     ("opus clip vs vidyo ai", "ai-video", "comparison", 1200, 23, None),
-    ("veed io vs descript", "ai-video", "comparison", 1100, 22, None),
+    ("veed io vs descript", "ai-video", "comparison", 1100, 22, "descript"),
     ("heygen review 2026", "ai-video", "informational", 2400, 28, None),
     ("synthesia review 2026", "ai-video", "informational", 2100, 29, None),
     ("pika labs review 2026", "ai-video", "informational", 1700, 24, None),
@@ -361,7 +361,7 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
         "tutorial",
         1600,
         24,
-        None,
+        "zapier",
     ),
     (
         "how to use notion ai for meeting notes",
@@ -395,6 +395,35 @@ _SEED: list[tuple[str, str, str, int, int, str | None]] = [
         23,
         None,
     ),
+    # seo — Surfer, Semrush, Ahrefs
+    ("semrush vs ahrefs", "seo", "comparison", 5400, 38, "semrush"),
+    ("semrush review 2026", "seo", "informational", 6200, 36, "semrush"),
+    ("ahrefs review 2026", "seo", "informational", 4800, 34, "ahrefs"),
+    ("best seo tools 2026", "seo", "comparison", 8100, 40, "semrush"),
+    ("how to use semrush", "seo", "tutorial", 2900, 28, "semrush"),
+    ("how to use ahrefs", "seo", "tutorial", 2600, 27, "ahrefs"),
+    ("ahrefs vs moz", "seo", "comparison", 2200, 30, "ahrefs"),
+    ("best keyword research tools 2026", "seo", "comparison", 3600, 33, "semrush"),
+    ("surfer seo vs semrush", "seo", "comparison", 1400, 26, "surfer"),
+    ("semrush vs moz", "seo", "comparison", 1800, 29, "semrush"),
+    (
+        "how to do keyword research with ahrefs",
+        "seo",
+        "tutorial",
+        1600,
+        24,
+        "ahrefs",
+    ),
+    ("ahrefs webmaster tools review", "seo", "informational", 900, 18, "ahrefs"),
+    (
+        "semrush keyword magic tool tutorial",
+        "seo",
+        "tutorial",
+        1300,
+        22,
+        "semrush",
+    ),
+    ("ahrefs site explorer tutorial", "seo", "tutorial", 1500, 23, "ahrefs"),
 ]
 
 

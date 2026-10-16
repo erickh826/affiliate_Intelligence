@@ -65,6 +65,7 @@ export const footerColumns: { heading: string; links: NavLink[] }[] = [
     links: [
       { label: 'Contact', href: '/contact' },
       { label: 'Disclaimer', href: '/disclaimer' },
+      { label: 'Affiliate disclosure', href: '/affiliate-disclosure' },
     ],
   },
   {
@@ -78,6 +79,7 @@ export const footerColumns: { heading: string; links: NavLink[] }[] = [
 
 export const footerLegal: NavLink[] = [
   { label: 'Privacy', href: '/privacy-policy' },
+  { label: 'Affiliate disclosure', href: '/affiliate-disclosure' },
   { label: 'Disclaimer', href: '/disclaimer' },
   { label: 'Cookies', href: '/privacy-policy#cookies' },
 ];

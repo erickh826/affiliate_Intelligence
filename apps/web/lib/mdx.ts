@@ -14,6 +14,7 @@ export interface Frontmatter {
   affiliate_partner: string | null;
   schema_type: string;
   image?: string;
+  draft?: boolean | string;
 }
 
 export interface Heading {
@@ -41,6 +42,10 @@ export interface FAQData {
 }
 
 const CONTENT_PATH = path.join(process.cwd(), 'content');
+
+export function isDraft(frontmatter: { draft?: boolean | string }): boolean {
+  return frontmatter.draft === true || frontmatter.draft === 'true';
+}
 const SKIP_CONTENT_DIRS = new Set(['faq']);
 const UNRESOLVED_LINK_RE = /\[([^\]]+)\]\(\{\{LINK_[A-Z0-9_]+\}\}\)/g;
 
@@ -143,7 +148,7 @@ export async function getAllArticles(): Promise<MDXData[]> {
       for (const file of files) {
         const slug = file.replace('.mdx', '');
         const data = await getMDXDataBySlug(category, slug);
-        if (data) articles.push(data);
+        if (data && !isDraft(data.frontmatter)) articles.push(data);
       }
     }
   }

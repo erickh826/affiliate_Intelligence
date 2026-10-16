@@ -1,0 +1,94 @@
+{
+  "programs": [
+    {
+      "id": "jasper",
+      "name": "Jasper AI",
+      "category": "ai-writing",
+      "url": "https://jasper.ai/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Jasper Free for 7 Days →",
+      "enabled": false
+    },
+    {
+      "id": "writesonic",
+      "name": "Writesonic",
+      "category": "ai-writing",
+      "url": "https://writesonic.com/pricing?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Compare Writesonic Plans →",
+      "enabled": false
+    },
+    {
+      "id": "copy_ai",
+      "name": "Copy.ai",
+      "category": "ai-writing",
+      "url": "https://www.copy.ai/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Copy.ai Free →",
+      "enabled": false
+    },
+    {
+      "id": "surfer",
+      "name": "Surfer SEO",
+      "category": "seo",
+      "url": "https://surferseo.com/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Surfer SEO →",
+      "enabled": false
+    },
+    {
+      "id": "semrush",
+      "name": "Semrush",
+      "category": "seo",
+      "url": "https://www.semrush.com/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Start a Semrush Trial →",
+      "enabled": false
+    },
+    {
+      "id": "ahrefs",
+      "name": "Ahrefs",
+      "category": "seo",
+      "url": "https://ahrefs.com/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Ahrefs →",
+      "enabled": false
+    },
+    {
+      "id": "elevenlabs",
+      "name": "ElevenLabs",
+      "category": "ai-video",
+      "url": "https://elevenlabs.io/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try ElevenLabs →",
+      "enabled": false
+    },
+    {
+      "id": "descript",
+      "name": "Descript",
+      "category": "ai-video",
+      "url": "https://www.descript.com/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Descript Free →",
+      "enabled": false
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "category": "ai-productivity",
+      "url": "https://www.notion.so/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Try Notion Free →",
+      "enabled": false
+    },
+    {
+      "id": "zapier",
+      "name": "Zapier",
+      "category": "ai-productivity",
+      "url": "https://zapier.com/?via=YOUR_REF",
+      "promo_code": "",
+      "anchor": "Start Automating with Zapier →",
+      "enabled": false
+    }
+  ]
+}

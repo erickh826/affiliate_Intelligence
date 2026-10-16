@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from category_weights import mdx_is_draft
 from db_setup import init_db
 from generation_agent import (
     ProviderOutageError,
@@ -253,9 +254,10 @@ class TestRunLive:
         ).fetchone()[0]
         conn.close()
         assert row is not None
-        assert row[0] == "published"
-        assert row[1]
-        assert published == 1
+        assert row[0] == "draft"
+        assert row[1] is None
+        assert "draft: true" in mdx_files[0].read_text(encoding="utf-8")
+        assert published == 0
 
     def test_retries_regenerate_failures_before_publish(
         self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -308,11 +310,11 @@ class TestRunLive:
         assert code == 0
         assert calls["n"] == 2
         conn = sqlite3.connect(seeded_db)
-        published = conn.execute(
-            "SELECT COUNT(*) FROM keywords WHERE status = 'published'"
+        drafts = conn.execute(
+            "SELECT COUNT(*) FROM keywords WHERE status = 'draft'"
         ).fetchone()[0]
         conn.close()
-        assert published == 1
+        assert drafts == 1
 
     def test_duplicate_skip_does_not_retry(
         self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -457,15 +459,15 @@ class TestRunLive:
         failed = conn.execute(
             "SELECT COUNT(*) FROM keywords WHERE status = 'failed'"
         ).fetchone()[0]
-        published = conn.execute(
-            "SELECT COUNT(*) FROM keywords WHERE status = 'published'"
+        drafts = conn.execute(
+            "SELECT COUNT(*) FROM keywords WHERE status = 'draft'"
         ).fetchone()[0]
         conn.close()
         assert code == 0
         assert calls["n"] == 2
         assert timed_out == ("pending",)
         assert failed == 0
-        assert published == 1
+        assert drafts == 1
         assert len(list(content_root.rglob("*.mdx"))) == 1
 
     def test_validation_error_still_marks_failed(
@@ -666,6 +668,12 @@ def test_published_rows_match_content_files() -> None:
             "SELECT slug FROM keywords WHERE status = 'published' AND slug IS NOT NULL"
         )
     }
+    draft_status = {
+        row[0]
+        for row in conn.execute(
+            "SELECT slug FROM keywords WHERE status = 'draft' AND slug IS NOT NULL"
+        )
+    }
     conn.close()
 
     mdx_slugs = {path.stem for path in content_root.rglob("*.mdx")}
@@ -681,9 +689,18 @@ def test_published_rows_match_content_files() -> None:
         else set()
     )
 
-    assert mdx_slugs == published
-    assert faq_slugs == published
-    assert map_slugs == published
+    live_mdx = set()
+    draft_mdx = set()
+    for path in content_root.rglob("*.mdx"):
+        if mdx_is_draft(path.read_text(encoding="utf-8")):
+            draft_mdx.add(path.stem)
+        else:
+            live_mdx.add(path.stem)
+
+    assert mdx_slugs == faq_slugs == map_slugs
+    assert published <= live_mdx
+    assert draft_mdx <= draft_status
+    assert mdx_slugs == published | draft_status
 
 
 _STILL_FAILED = {
