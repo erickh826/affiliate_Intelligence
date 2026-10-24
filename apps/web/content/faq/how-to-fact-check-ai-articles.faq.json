@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What is the best tool for fact checking AI articles?"
+    },
+    {
+      "answer": "",
+      "question": "How do I use Google Fact Check Explorer?"
+    },
+    {
+      "answer": "",
+      "question": "Can AI-generated content be trusted?"
+    },
+    {
+      "answer": "",
+      "question": "What are common inaccuracies in AI articles?"
+    },
+    {
+      "answer": "",
+      "question": "How often should I fact check AI-generated content?"
+    }
+  ],
+  "slug": "how-to-fact-check-ai-articles"
+}
