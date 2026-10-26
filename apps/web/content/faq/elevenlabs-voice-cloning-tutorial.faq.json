@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What is ElevenLabs voice cloning?"
+    },
+    {
+      "answer": "",
+      "question": "How do I record voice samples for cloning?"
+    },
+    {
+      "answer": "",
+      "question": "What are the pricing plans for ElevenLabs?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use voice cloning for commercial purposes?"
+    },
+    {
+      "answer": "",
+      "question": "What audio quality is required for best results?"
+    }
+  ],
+  "slug": "elevenlabs-voice-cloning-tutorial"
+}
