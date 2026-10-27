@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "How do I install Cursor AI?"
+    },
+    {
+      "answer": "",
+      "question": "Can I import my VSCode settings into Cursor?"
+    },
+    {
+      "answer": "",
+      "question": "What are the pricing options for Cursor AI?"
+    },
+    {
+      "answer": "",
+      "question": "Is Cursor AI compatible with all VSCode extensions?"
+    },
+    {
+      "answer": "",
+      "question": "How do I open a project in Cursor AI?"
+    }
+  ],
+  "slug": "cursor-ai-setup-guide-for-vscode"
+}
