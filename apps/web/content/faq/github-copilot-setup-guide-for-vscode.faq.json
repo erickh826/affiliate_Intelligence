@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "How much does GitHub Copilot cost?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use GitHub Copilot without a subscription?"
+    },
+    {
+      "answer": "",
+      "question": "What are the limits of the free plan?"
+    },
+    {
+      "answer": "",
+      "question": "Is Claude Code compatible with VSCode?"
+    },
+    {
+      "answer": "",
+      "question": "How do I cancel my GitHub Copilot subscription?"
+    }
+  ],
+  "slug": "github-copilot-setup-guide-for-vscode"
+}
