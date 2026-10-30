@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What is the minimum audio length for cloning with ElevenLabs?"
+    },
+    {
+      "answer": "",
+      "question": "Can I clone someone else's voice with ElevenLabs?"
+    },
+    {
+      "answer": "",
+      "question": "How long does it take to fine-tune a professional voice clone?"
+    },
+    {
+      "answer": "",
+      "question": "What audio quality is recommended for cloning?"
+    },
+    {
+      "answer": "",
+      "question": "Are there any costs associated with using ElevenLabs?"
+    }
+  ],
+  "slug": "how-to-clone-your-voice-with-elevenlabs"
+}
