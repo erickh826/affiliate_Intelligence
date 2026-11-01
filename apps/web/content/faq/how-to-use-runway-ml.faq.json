@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What is the cost of using Runway ML?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use Runway ML for free?"
+    },
+    {
+      "answer": "",
+      "question": "How do I generate a video from an image?"
+    },
+    {
+      "answer": "",
+      "question": "What are the best practices for text-to-video prompts?"
+    },
+    {
+      "answer": "",
+      "question": "How does Runway ML compare to other AI video tools?"
+    }
+  ],
+  "slug": "how-to-use-runway-ml"
+}
