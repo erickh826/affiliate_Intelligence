@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What are the main differences between Tabnine and GitHub Copilot?"
+    },
+    {
+      "answer": "",
+      "question": "Which tool is more popular among developers?"
+    },
+    {
+      "answer": "",
+      "question": "How much does GitHub Copilot cost compared to Tabnine?"
+    },
+    {
+      "answer": "",
+      "question": "What do users think about the accuracy of AI tools?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use Tabnine and GitHub Copilot together?"
+    }
+  ],
+  "slug": "tabnine-vs-github-copilot"
+}
