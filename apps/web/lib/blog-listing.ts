@@ -1,4 +1,5 @@
-import type { MDXData } from './mdx';
+import { articleDisplayImage } from './article-image';
+import type { Frontmatter, MDXData } from './mdx';
 
 export interface ArticleSummary {
   title: string;
@@ -8,7 +9,8 @@ export interface ArticleSummary {
   categoryLabel: string;
   publishedAt: string;
   href: string;
-  image: string | null;
+  image: string;
+  imageAlt: string;
 }
 
 export interface TopicLink {
@@ -98,12 +100,11 @@ export const fallbackTopics: TopicLink[] = [
   { label: 'Website builders', href: '/' },
 ];
 
-export function toArticleSummary(
-  article: MDXData,
-  image: string | null,
+export function articleSummaryFromFrontmatter(
+  frontmatter: Frontmatter,
 ): ArticleSummary {
-  const { title, description, slug, category, published_at } =
-    article.frontmatter;
+  const image = articleDisplayImage(frontmatter);
+  const { title, description, slug, category, published_at } = frontmatter;
   return {
     title,
     description,
@@ -112,6 +113,11 @@ export function toArticleSummary(
     categoryLabel: categoryLabel(category),
     publishedAt: published_at,
     href: `/${category}/${slug}`,
-    image,
+    image: image.src,
+    imageAlt: image.alt,
   };
+}
+
+export function toArticleSummary(article: MDXData): ArticleSummary {
+  return articleSummaryFromFrontmatter(article.frontmatter);
 }

@@ -115,6 +115,26 @@ class TestSectionPrompt:
         p = _section_prompt("H2", ["H3"], [], "comparison")
         assert "INTERNAL LINKING: Use placeholders like [Link Text]({{LINK_SLUG}})" in p
 
+    def test_editorial_fact_is_required_once(self) -> None:
+        prompt = _section_prompt(
+            "Overview",
+            ["Basics"],
+            [
+                {
+                    "claim": (
+                        "Manus paused new subscriptions in some regions "
+                        "since August 2026."
+                    ),
+                    "source": "editorial",
+                },
+                {"claim": "Manus pricing starts at $0.", "source": "example.com"},
+            ],
+            "informational",
+        )
+        assert "REQUIRED FACT" in prompt
+        assert "paused new subscriptions in some regions since August 2026" in prompt
+        assert "Manus pricing starts at $0." in prompt
+
     def test_first_section_requires_exact_keyword(self) -> None:
         prompt = _section_prompt(
             "H2",

@@ -172,9 +172,9 @@ data/keywords.db (SQLite)
 
 ## Affiliate links and drafts
 
-Affiliate programs are listed in `monetisation/affiliates.json`. Each entry has an `id`, referral `url`, `promo_code`, `anchor`, `category`, and `enabled` flag. The file ships with `YOUR_REF` placeholders and `enabled: false`.
+Affiliate programs are listed in `monetisation/affiliates.json`. Each entry has an `id`, `url`, `promo_code`, `anchor`, `category`, and `enabled` flag. Optional `type` is `affiliate` (default) or `referral`. Placeholder affiliate programs ship with `YOUR_REF` and `enabled: false`. Lovable and Manus are enabled referral links.
 
-To add a real link, paste the referral URL and promo code for that program and set `enabled` to `true`. Articles store only the program `id` in frontmatter (`affiliate_partner`). CTAs, including `rel="sponsored"`, are rendered from this file, so changing a link does not require an MDX edit.
+To add a real affiliate link, paste the URL and promo code for that program and set `enabled` to `true`. Articles store only the program `id` in frontmatter (`affiliate_partner`) or in an `<AffiliateCTA partner="id" />` tag. CTAs, including `rel="sponsored"`, are rendered from this file, so changing a link does not require an MDX edit. Referral CTAs include a one-line note that the site may receive credits or rewards.
 
 The bot writes `draft: true` only when quality assurance is WARN or FAIL. Drafts stay out of the homepage, category indexes, and sitemap. To publish one, set `draft: false` in that article's frontmatter and deploy. The keyword row stays `draft`, so the bot will not generate it again. A passing article is published even when every program is still a placeholder. Until `enabled` is true, that page renders no affiliate link.
 

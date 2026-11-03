@@ -1,3 +1,4 @@
+import { articleDisplayImage } from './article-image';
 import type { FAQData, Frontmatter } from './mdx';
 
 export function buildArticleSchema(
@@ -16,6 +17,7 @@ export function buildArticleSchema(
     datePublished: frontmatter.published_at,
     dateModified: frontmatter.last_reviewed || frontmatter.published_at,
     url: `${siteUrl}/${frontmatter.category}/${frontmatter.slug}/`,
+    image: `${siteUrl}${articleDisplayImage(frontmatter).src}`,
   };
 }
 

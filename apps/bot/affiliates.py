@@ -6,6 +6,7 @@ from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AFFILIATES_PATH = _PROJECT_ROOT / "monetisation" / "affiliates.json"
+_PROGRAM_TYPES = frozenset({"affiliate", "referral"})
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class AffiliateProgram:
     promo_code: str
     anchor: str
     enabled: bool
+    type: str = "affiliate"
 
 
 def _as_bool(value: object) -> bool:
@@ -37,7 +39,8 @@ def load_programs(path: Path | None = None) -> list[AffiliateProgram]:
             continue
         program_id = str(entry.get("id") or "").strip()
         category = str(entry.get("category") or "").strip()
-        if not program_id or not category:
+        program_type = str(entry.get("type") or "affiliate").strip() or "affiliate"
+        if not program_id or not category or program_type not in _PROGRAM_TYPES:
             continue
         programs.append(
             AffiliateProgram(
@@ -48,6 +51,7 @@ def load_programs(path: Path | None = None) -> list[AffiliateProgram]:
                 promo_code=str(entry.get("promo_code") or "").strip(),
                 anchor=str(entry.get("anchor") or "").strip(),
                 enabled=_as_bool(entry.get("enabled")),
+                type=program_type,
             )
         )
     return programs

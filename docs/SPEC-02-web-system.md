@@ -71,8 +71,10 @@ When the MDX repeats a section title on the very next heading (`## Title` follow
 Each `.mdx` renders as a static page via `generateStaticParams`. Frontmatter maps to:
 - `<title>`: `{title} | {site_name}`
 - `<meta name="description">`: `{description}`
-- Open Graph: `og:title`, `og:description`, `og:image` (via `@vercel/og`)
+- Open Graph: `og:title`, `og:description`, `og:image` (via `next/og`)
 - Canonical: `https://{domain}/{category}/{slug}/`
+
+Every article, including drafts and newly generated MDX, gets a branded cover at `/cover/{category}/{slug}`. The route is statically generated at build time from the article title, category, and keyword (the slug). The same PNG is the on-page cover, the card image, and the Open Graph / Twitter image. Alt text is `Cover image for {title}. Article about {keyword}.` A file in `public/` set as frontmatter `image` still wins when that file exists. Covers are drawn from the template. They are not copied from crawled articles.
 
 ### 4.2 Affiliate CTA Injection
 
@@ -124,7 +126,7 @@ Articles with `[slug].faq.json` inject into `<head>`:
 | robots.txt | Allows all crawlers and points `Sitemap:` at `{siteUrl}/sitemap.xml` |
 | Canonical | Exact page URL on all pages |
 | Structured data | FAQPage, BreadcrumbList, Article schema |
-| Open Graph | `og:title`, `og:description`, `og:image`, `og:type=article` |
+| Open Graph | `og:title`, `og:description`, `og:image` (the article cover), `og:type=article` |
 | Pagination | `rel="next"/"prev"` on category listing pages |
 
 ### Core Web Vitals Targets

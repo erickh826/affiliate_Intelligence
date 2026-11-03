@@ -134,7 +134,9 @@ export async function getMDXDataBySlug(
   };
 }
 
-export async function getAllArticles(): Promise<MDXData[]> {
+export async function getAllArticles(options?: {
+  includeDrafts?: boolean;
+}): Promise<MDXData[]> {
   const categories = fs.readdirSync(CONTENT_PATH);
   const articles: MDXData[] = [];
 
@@ -148,7 +150,9 @@ export async function getAllArticles(): Promise<MDXData[]> {
       for (const file of files) {
         const slug = file.replace('.mdx', '');
         const data = await getMDXDataBySlug(category, slug);
-        if (data && !isDraft(data.frontmatter)) articles.push(data);
+        if (!data) continue;
+        if (!options?.includeDrafts && isDraft(data.frontmatter)) continue;
+        articles.push(data);
       }
     }
   }

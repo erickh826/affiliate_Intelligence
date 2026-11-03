@@ -1,9 +1,13 @@
+import { linkDisclosure, type ProgramType } from '../lib/affiliates';
+
 interface AffiliateCTAProps {
   href: string;
   text: string;
   partner: string;
   placement: 'top' | 'inline' | 'bottom';
   promoCode?: string;
+  linkType?: ProgramType;
+  disclosure?: string;
 }
 
 export default function AffiliateCTA({
@@ -12,8 +16,14 @@ export default function AffiliateCTA({
   partner,
   placement,
   promoCode,
+  linkType = 'affiliate',
+  disclosure,
 }: AffiliateCTAProps) {
   const code = promoCode?.trim();
+  const referral = linkType === 'referral';
+  const line = disclosure?.trim() || linkDisclosure(linkType);
+  const promo = !referral && code ? ` Promo code: ${code}.` : '';
+
   if (placement === 'top') {
     return (
       <div className="my-6 p-4 bg-accent/10 border border-accent/30 rounded-lg flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -26,10 +36,17 @@ export default function AffiliateCTA({
           {text}
         </a>
         <p className="text-xs text-secondary">
-          We may earn a commission if you click this link.{' '}
-          <span className="capitalize">{partner.replace(/_/g, ' ')}</span> is an
-          affiliate partner.
-          {code ? ` Promo code: ${code}.` : ''}
+          {line}
+          {referral ? null : (
+            <>
+              {' '}
+              <span className="capitalize">
+                {partner.replace(/_/g, ' ')}
+              </span>{' '}
+              is an affiliate partner.
+            </>
+          )}
+          {promo}
         </p>
       </div>
     );
@@ -38,8 +55,8 @@ export default function AffiliateCTA({
   return (
     <div className="my-8 p-5 bg-surface border border-border rounded-lg">
       <p className="text-sm text-secondary mb-3">
-        We may earn a commission if you click this link.
-        {code ? ` Promo code: ${code}.` : ''}
+        {line}
+        {promo}
       </p>
       <a
         href={href}

@@ -128,6 +128,25 @@ class TestSeed:
         count = seed(tmp_db)
         assert count == len(_SEED)
 
+    def test_referral_keywords_are_queued(self, tmp_db: Path) -> None:
+        seed(tmp_db)
+        conn = sqlite3.connect(tmp_db)
+        rows = conn.execute(
+            """
+            SELECT keyword, affiliate_partner, status, category
+            FROM keywords
+            WHERE keyword IN (?, ?, ?)
+            """,
+            ("lovable review", "lovable vs bolt vs v0", "manus ai review"),
+        ).fetchall()
+        conn.close()
+        queued = {row[0]: row for row in rows}
+        assert queued["lovable review"][1] == "lovable"
+        assert queued["lovable vs bolt vs v0"][1] == "lovable"
+        assert queued["manus ai review"][1] == "manus"
+        assert {row[2] for row in rows} == {"pending"}
+        assert {row[3] for row in rows} == {"ai-code"}
+
     def test_seed_is_idempotent(self, tmp_db: Path) -> None:
         first = seed(tmp_db)
         second = seed(tmp_db)

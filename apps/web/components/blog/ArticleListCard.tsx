@@ -11,6 +11,7 @@ export default function ArticleListCard({ article }: ArticleListCardProps) {
     <article className="grid grid-cols-[120px_1fr] items-start gap-4 border-b border-border py-6 sm:grid-cols-[180px_1fr] sm:gap-6">
       <ArticleMedia
         image={article.image}
+        alt={article.imageAlt}
         sizes="180px"
         className="aspect-[4/3] rounded-lg"
       />

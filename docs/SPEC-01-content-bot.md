@@ -96,6 +96,8 @@ research_bundle = {
 }
 ```
 
+`apps/bot/editorial_facts.py` prepends required claims for specific keywords before the section writer runs. The first section prompt must include each claim once. `manus ai review` includes: Manus paused new subscriptions in some regions since August 2026.
+
 ---
 
 ## 5. Outline Generator

@@ -5,6 +5,7 @@ import {
   contentRendersAffiliateCta,
   getProgram,
   isProgramActive,
+  linkDisclosure,
   loadAffiliateConfig,
 } from './affiliates';
 
@@ -20,6 +21,8 @@ export interface CTAConfig {
   text: string;
   partner: string;
   promoCode?: string;
+  linkType: AffiliateProgram['type'];
+  disclosure: string;
 }
 
 export function getAffiliateMapPath(slug: string): string {
@@ -48,6 +51,8 @@ export function ctaFromProgram(
     href: program.url.trim(),
     text: program.anchor.trim() || `Try ${program.name} →`,
     partner: program.name.trim() || program.id,
+    linkType: program.type,
+    disclosure: linkDisclosure(program.type),
     ...(promoCode ? { promoCode } : {}),
   };
 }
