@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What programming languages does Claude Code support?"
+    },
+    {
+      "answer": "",
+      "question": "Is Claude Code free to use?"
+    },
+    {
+      "answer": "",
+      "question": "How does Claude Code compare to GitHub Copilot?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use Claude Code offline?"
+    },
+    {
+      "answer": "",
+      "question": "What are the system requirements for Claude Code?"
+    }
+  ],
+  "slug": "how-to-use-claude-code"
+}
