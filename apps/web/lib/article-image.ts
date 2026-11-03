@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { articleCoverAlt, coverImagePath } from './cover';
 import type { Frontmatter } from './mdx';
 
 const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
@@ -28,4 +29,15 @@ export function resolveArticleImage(
   }
 
   return raw;
+}
+
+export function articleDisplayImage(
+  frontmatter: Pick<Frontmatter, 'image' | 'title' | 'slug' | 'category'>,
+): { src: string; alt: string } {
+  return {
+    src:
+      resolveArticleImage(frontmatter) ??
+      coverImagePath(frontmatter.category, frontmatter.slug),
+    alt: articleCoverAlt(frontmatter.title, frontmatter.slug),
+  };
 }

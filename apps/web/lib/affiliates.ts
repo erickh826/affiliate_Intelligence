@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
+export type ProgramType = 'affiliate' | 'referral';
+
 export interface AffiliateProgram {
   id: string;
   name: string;
@@ -9,11 +11,14 @@ export interface AffiliateProgram {
   promo_code: string;
   anchor: string;
   enabled: boolean;
+  type: ProgramType;
 }
 
 export interface AffiliateConfig {
   programs: AffiliateProgram[];
 }
+
+export type DisclosureKind = 'affiliate' | 'referral' | 'mixed';
 
 const AFFILIATE_TAG =
   /<AffiliateCTA\b[^>]*\bpartner=["']([^"']+)["'][^>]*\/?>/g;
@@ -39,22 +44,39 @@ export function loadAffiliateConfig(
   const programs = (raw as { programs: unknown }).programs;
   if (!Array.isArray(programs)) return { programs: [] };
   return {
-    programs: programs.filter(isAffiliateProgram),
+    programs: programs.flatMap((entry) => {
+      const program = parseAffiliateProgram(entry);
+      return program ? [program] : [];
+    }),
   };
 }
 
-function isAffiliateProgram(value: unknown): value is AffiliateProgram {
-  if (!value || typeof value !== 'object') return false;
+function parseAffiliateProgram(value: unknown): AffiliateProgram | null {
+  if (!value || typeof value !== 'object') return null;
   const program = value as Record<string, unknown>;
-  return (
-    typeof program.id === 'string' &&
-    typeof program.name === 'string' &&
-    typeof program.category === 'string' &&
-    typeof program.url === 'string' &&
-    typeof program.promo_code === 'string' &&
-    typeof program.anchor === 'string' &&
-    typeof program.enabled === 'boolean'
-  );
+  const type = program.type === undefined ? 'affiliate' : program.type;
+  if (type !== 'affiliate' && type !== 'referral') return null;
+  if (
+    typeof program.id !== 'string' ||
+    typeof program.name !== 'string' ||
+    typeof program.category !== 'string' ||
+    typeof program.url !== 'string' ||
+    typeof program.promo_code !== 'string' ||
+    typeof program.anchor !== 'string' ||
+    typeof program.enabled !== 'boolean'
+  ) {
+    return null;
+  }
+  return {
+    id: program.id,
+    name: program.name,
+    category: program.category,
+    url: program.url,
+    promo_code: program.promo_code,
+    anchor: program.anchor,
+    enabled: program.enabled,
+    type,
+  };
 }
 
 export function getProgram(
@@ -87,4 +109,59 @@ export function contentRendersAffiliateCta(
   return affiliatePartnerIdsInContent(content).some((id) =>
     isProgramActive(getProgram(id, list)),
   );
+}
+
+export function linkDisclosure(type: ProgramType): string {
+  if (type === 'referral') {
+    return 'We may receive credits or rewards if you sign up through this link.';
+  }
+  return 'We may earn a commission if you click this link.';
+}
+
+export function activeProgramsForArticle(
+  partnerId: string | null | undefined,
+  content: string,
+  programs: AffiliateProgram[] = loadAffiliateConfig().programs,
+): AffiliateProgram[] {
+  const ids = new Set<string>();
+  const primary = (partnerId ?? '').trim();
+  if (primary) ids.add(primary);
+  for (const id of affiliatePartnerIdsInContent(content)) ids.add(id);
+  const found: AffiliateProgram[] = [];
+  for (const id of ids) {
+    const program = getProgram(id, programs);
+    if (isProgramActive(program)) found.push(program);
+  }
+  return found;
+}
+
+export function disclosureKind(
+  programs: AffiliateProgram[],
+): DisclosureKind | null {
+  const active = programs.filter((program) => isProgramActive(program));
+  if (active.length === 0) return null;
+  const kinds = new Set(active.map((program) => program.type));
+  if (kinds.has('referral') && kinds.has('affiliate')) return 'mixed';
+  if (kinds.has('referral')) return 'referral';
+  return 'affiliate';
+}
+
+export function articleDisclosureText(kind: DisclosureKind): string {
+  if (kind === 'referral') {
+    return 'This article contains a referral link. We may receive credits or rewards if you sign up through it.';
+  }
+  if (kind === 'mixed') {
+    return 'This article contains affiliate and referral links. We may earn a commission or receive credits or rewards if you use them.';
+  }
+  return 'This article contains affiliate links. We may earn a commission if you buy through them.';
+}
+
+export function comparisonBannerText(kind: DisclosureKind | null): string {
+  if (kind === 'referral') {
+    return 'This page contains a referral link. We may receive credits or rewards if you sign up through it.';
+  }
+  if (kind === 'mixed') {
+    return 'This page contains affiliate and referral links. We may earn a commission or receive credits or rewards if you use them.';
+  }
+  return 'This page contains affiliate links. We may earn a commission at no cost to you.';
 }

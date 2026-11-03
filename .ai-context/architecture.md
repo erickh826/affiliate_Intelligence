@@ -106,6 +106,7 @@
 1. Vercel Build
    → next build reads apps/web/content/*.mdx
    → generateStaticParams() creates static pages per category/slug
+   → /cover/{category}/{slug} renders a branded PNG (next/og) used as the cover and og:image
    → cta_injector.ts reads monetisation/affiliates.json by program id → injects <AffiliateCTA>
    → schema_builder.ts generates JSON-LD (Article, FAQPage, BreadcrumbList)
 
