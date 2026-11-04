@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What are the best practices for writing prompts for coding AI?"
+    },
+    {
+      "answer": "",
+      "question": "How can I improve the accuracy of AI-generated code?"
+    },
+    {
+      "answer": "",
+      "question": "What common mistakes should I avoid when using AI coding tools?"
+    },
+    {
+      "answer": "",
+      "question": "How do I provide context in my prompts effectively?"
+    },
+    {
+      "answer": "",
+      "question": "What tools can help me write better prompts for coding AI?"
+    }
+  ],
+  "slug": "how-to-write-better-prompts-for-coding-ai"
+}
