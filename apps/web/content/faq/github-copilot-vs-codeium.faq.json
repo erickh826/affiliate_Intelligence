@@ -1,0 +1,25 @@
+{
+  "faqs": [
+    {
+      "answer": "",
+      "question": "What are the main differences between GitHub Copilot and Codeium?"
+    },
+    {
+      "answer": "",
+      "question": "Is GitHub Copilot worth the subscription fee?"
+    },
+    {
+      "answer": "",
+      "question": "How does Devin Desktop compare to GitHub Copilot in terms of features?"
+    },
+    {
+      "answer": "",
+      "question": "What programming languages are supported by GitHub Copilot?"
+    },
+    {
+      "answer": "",
+      "question": "Can I use both GitHub Copilot and Devin Desktop simultaneously?"
+    }
+  ],
+  "slug": "github-copilot-vs-codeium"
+}
