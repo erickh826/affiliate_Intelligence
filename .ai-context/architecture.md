@@ -75,8 +75,9 @@
    → ORDER BY volume/(difficulty+1) DESC LIMIT N
 
 2. research_agent.py
-   → Firecrawl: scrape top-5 SERP results
-   → Perplexity API: extract facts, pricing, complaints
+   → Drive packet for the keyword slug, when configured
+   → Else Firecrawl + Perplexity, if PERPLEXITY_API_KEY is set
+   → No packet and Perplexity unset or quota-failed → skip, status stays pending
    → Output: research_bundle dict
 
 3. generation_agent.py
@@ -172,7 +173,8 @@
 |---|---|---|---|
 | OpenAI API | Outline + QA | SPEC-01 | ~$0.003/article |
 | Anthropic API | Section writing (`claude-haiku-4-5`) | SPEC-01 | ~$0.018/article |
-| Perplexity API | Real-time research | SPEC-01 | ~$0.003/article |
+| Google Drive | Operator-verified research packets | SPEC-01 | Free |
+| Perplexity API | Fallback research when no Drive packet | SPEC-01 | ~$0.003/article |
 | Firecrawl | SERP scraping | SPEC-01 | Free tier / $0.001 |
 | Vercel | Hosting + CDN | SPEC-02 | Free tier |
 | Google AdSense | Display ads | SPEC-03 | Revenue share |
@@ -203,7 +205,8 @@
 |---|---|---|
 | LLM API down | HTTP 5xx / timeout | Retry 3x with backoff; fallback model per SPEC-01 §10 |
 | OpenAI outline quota exhausted | HTTP 429 `credit_balance_exhausted` | Outline falls back to Anthropic without `temperature`. A client-side SDK error is an `LLMAPIError`. If OpenAI was quota or billing, restore the keyword to `pending` or `needs_rewrite`, exit 2, and do not commit an MDX-less article batch |
-| Live batch wrote no MDX | `selected > 0` and `succeeded == 0` on a non-dry run | Exit 2 so the cron does not commit. Draft MDX counts as a write |
+| Live batch wrote no MDX | `selected > 0` and `succeeded == 0` on a non-dry run, and the batch is not all research skips | Exit 2 so the cron does not commit. Draft MDX counts as a write |
+| No Drive packet and Perplexity unset or quota-failed | `ResearchUnavailable` | Release keyword to `pending` or `needs_rewrite`. If every selected keyword is skipped this way, exit 0 |
 | Quality gate duplicate | Cosine similarity > 0.85 | Skip article, mark status='failed' |
 | Quality gate WARN or other FAIL | Automated check | Write MDX with draft: true, status='draft', continue |
 | Vercel deploy fail | Deploy hook returns non-200 | Log error, retry once after 60s |

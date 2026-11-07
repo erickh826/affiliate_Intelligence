@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from db_setup import DB_PATH
+from drive_research import drive_configured
 from generation_agent import (
     LLMAPIError,
     ProviderOutageError,
@@ -33,7 +34,13 @@ from mdx_writer import (
     write_article,
 )
 from quality_gate import run_quality_gate
-from research_agent import ResearchAgentError, _perplexity_preset, build_research_bundle
+from research_agent import (
+    ResearchAgentError,
+    ResearchSession,
+    ResearchUnavailable,
+    _perplexity_preset,
+    build_research_bundle,
+)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_CONTENT_ROOT = _PROJECT_ROOT / "apps" / "web" / "content"
@@ -65,6 +72,11 @@ _SECRET_ENV_VARS = (
     "ANTHROPIC_API_KEY",
     "PERPLEXITY_API_KEY",
     "FIRECRAWL_API_KEY",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+)
+_PRIVATE_KEY_PATTERN = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+    re.DOTALL,
 )
 _SECRET_PATTERNS = (
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}"),
@@ -97,7 +109,7 @@ def _redact(text: str) -> str:
             redacted = redacted.replace(value, f"[redacted:{name}]")
     for pattern in _SECRET_PATTERNS:
         redacted = pattern.sub("[redacted]", redacted)
-    return redacted
+    return _PRIVATE_KEY_PATTERN.sub("[redacted]", redacted)
 
 
 def _runtime_context() -> dict[str, Any]:
@@ -120,6 +132,9 @@ def _runtime_context() -> dict[str, Any]:
         },
         "firecrawl": {
             "api_key_configured": _key_configured("FIRECRAWL_API_KEY"),
+        },
+        "drive": {
+            "configured": drive_configured(),
         },
     }
 
@@ -173,6 +188,7 @@ def _log_batch_finished(
     retryable = sum(1 for outcome in outcomes if outcome == "retryable")
     outages = sum(1 for outcome in outcomes if outcome == "outage")
     released = sum(1 for outcome in outcomes if outcome == "released")
+    skipped = sum(1 for outcome in outcomes if outcome == "skipped")
     step_counts = _format_counts(failed_steps)
     type_counts = _format_counts(error_types)
     _LOG.info(
@@ -187,6 +203,7 @@ def _log_batch_finished(
                 "retryable": retryable,
                 "outages": outages,
                 "released": released,
+                "skipped": skipped,
                 "exit_code": exit_code,
                 "failed_steps": step_counts,
                 "error_types": type_counts,
@@ -195,13 +212,15 @@ def _log_batch_finished(
     )
     _LOG.info(
         "batch_summary selected=%s succeeded=%s failed=%s retryable=%s "
-        "outages=%s released=%s exit_code=%s failed_steps=%s error_types=%s",
+        "outages=%s released=%s skipped=%s exit_code=%s failed_steps=%s "
+        "error_types=%s",
         selected,
         succeeded,
         failed,
         retryable,
         outages,
         released,
+        skipped,
         exit_code,
         step_counts,
         type_counts,
@@ -253,11 +272,29 @@ async def _process_one(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
+    session: ResearchSession,
 ) -> str:
     slug = str(row.get("slug") or row.get("keyword", "unknown"))
     step = "research"
     try:
-        research = build_research_bundle(row["keyword"], row["intent"], dry_run=dry_run)
+        research = build_research_bundle(
+            row["keyword"],
+            row["intent"],
+            dry_run=dry_run,
+            slug=str(row.get("slug") or ""),
+            session=session,
+        )
+        if research.get("research_source") == "drive":
+            _LOG.info(
+                json.dumps(
+                    {
+                        "event": "research_loaded",
+                        "slug": slug,
+                        "source": "drive",
+                        "drive_file": research.get("drive_file"),
+                    }
+                )
+            )
         attempts = 1 if dry_run else 2
         article: dict[str, Any] | None = None
         qa_result = None
@@ -266,16 +303,36 @@ async def _process_one(
             outline = await generate_outline(
                 row["keyword"], row["intent"], research, dry_run=dry_run
             )
+            preferred_title = str(research.get("title") or "").strip()
+            keyword_text = str(row.get("keyword") or "")
+            if (
+                len(preferred_title) >= 10
+                and keyword_text
+                and keyword_text.lower() in preferred_title.lower()
+            ):
+                outline["h1"] = preferred_title
+            row_partner = str(row.get("affiliate_partner") or "").strip()
+            packet_partner = str(research.get("affiliate_partner") or "").strip()
+            partner = row_partner or packet_partner or None
             step = "sections"
             sections = await write_sections(
                 outline,
                 research,
                 row["intent"],
                 dry_run=dry_run,
-                affiliate_partner=row.get("affiliate_partner"),
+                affiliate_partner=partner,
             )
             step = "write"
             article = assemble_article(row, outline, sections)
+            article["affiliate_partner"] = partner
+            if preferred_title and outline.get("h1") == preferred_title:
+                article["title"] = preferred_title
+            cta_text = str(research.get("cta_text") or "").strip()
+            disclosure = str(research.get("disclosure") or "").strip()
+            if cta_text:
+                article["cta_text"] = cta_text
+            if disclosure:
+                article["disclosure"] = disclosure
             qa_result = run_quality_gate(article, existing_articles=articles_written)
             if qa_result.overall != "FAIL":
                 break
@@ -305,6 +362,21 @@ async def _process_one(
             content_root=content_root,
             affiliate_map_root=affiliate_map_root,
         )
+    except ResearchUnavailable as exc:
+        _release_keyword(km, row)
+        _LOG.info(
+            json.dumps(
+                {
+                    "event": "article_skipped",
+                    "slug": slug,
+                    "step": step,
+                    "error_type": type(exc).__name__,
+                    "error": _redact(str(exc)),
+                    "retryable": True,
+                }
+            )
+        )
+        return "skipped"
     except ProviderOutageError as exc:
         _release_keyword(km, row)
         _log_article_failure(
@@ -420,6 +492,7 @@ async def _run_batch(
     km: KeywordManager,
     failed_steps: list[str],
     error_types: list[str],
+    session: ResearchSession,
 ) -> list[str]:
     articles_written: list[dict[str, Any]] = []
     results = []
@@ -434,6 +507,7 @@ async def _run_batch(
             km=km,
             failed_steps=failed_steps,
             error_types=error_types,
+            session=session,
         )
         results.append(outcome)
         if outcome == "outage":
@@ -516,13 +590,11 @@ def run(
                 km=km,
                 failed_steps=failed_steps,
                 error_types=error_types,
+                session=ResearchSession(),
             )
         )
 
-    succeeded = sum(1 for outcome in outcomes if outcome == "success")
-    exit_code = 0
-    if not dry_run and len(rows) > 0 and succeeded == 0:
-        exit_code = 2
+    exit_code = _batch_exit_code(dry_run, len(rows), outcomes)
     _log_batch_finished(
         batch=batch,
         dry_run=dry_run,
@@ -535,16 +607,55 @@ def run(
     return exit_code
 
 
+def _batch_exit_code(dry_run: bool, selected: int, outcomes: list[str]) -> int:
+    if dry_run or selected == 0:
+        return 0
+    if any(outcome == "success" for outcome in outcomes):
+        return 0
+    if outcomes and all(outcome == "skipped" for outcome in outcomes):
+        return 0
+    return 2
+
+
+def preview(
+    batch: int,
+    *,
+    db_path: Path = DB_PATH,
+    content_root: Path = _DEFAULT_CONTENT_ROOT,
+) -> int:
+    with KeywordManager(db_path) as km:
+        rows = km.select_keywords(
+            batch,
+            content_root=content_root,
+            lock=False,
+        )
+    print("slug\tkeyword\tpartner")
+    for row in rows:
+        print(
+            f"{row.get('slug')}\t{row.get('keyword')}\t"
+            f"{row.get('affiliate_partner') or ''}"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Affiliate Intelligence bot runner")
     parser.add_argument("--batch", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--preview",
+        type=int,
+        default=None,
+        help="Print the next keyword slugs without locking or generating",
+    )
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.preview is not None:
+        return preview(batch=args.preview)
     return run(batch=args.batch, dry_run=args.dry_run)
 
 

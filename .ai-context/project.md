@@ -31,7 +31,7 @@ A **Programmatic SEO Content Machine** that:
 | Layer | Target Technology | Configuration Source |
 |---|---|---|
 | Content Pipeline | Python 3.11+, asyncio | implementation default |
-| LLM (Research) | Perplexity Agent API preset `high` | `PERPLEXITY_PRESET` |
+| LLM (Research) | Google Drive packet, else Perplexity Agent API preset `high` | `DRIVE_FOLDER_ID`, `PERPLEXITY_PRESET` |
 | LLM (Outline / QA) | OpenAI lightweight reasoning model | `OPENAI_MODEL_OUTLINE` |
 | LLM (Writing) | Anthropic fast generation model | `ANTHROPIC_MODEL_WRITING` |
 | Web Scraping | Firecrawl | implementation default |
@@ -119,7 +119,8 @@ pseo-project/
 
 When implementation is active, see `.env.example` for the full list. Key variables:
 
-- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `FIRECRAWL_API_KEY`
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `FIRECRAWL_API_KEY`, optional `PERPLEXITY_API_KEY`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`, `DRIVE_FOLDER_ID` (Drive research packets)
 - `OPENAI_MODEL_OUTLINE`, `ANTHROPIC_MODEL_WRITING`, `OPENAI_MODEL_FALLBACK`, `PERPLEXITY_PRESET`
 - `VERCEL_DEPLOY_HOOK_URL`
 - `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`

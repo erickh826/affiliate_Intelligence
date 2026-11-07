@@ -185,7 +185,7 @@ Runs daily at 02:00 UTC (`--batch 5`). `workflow_dispatch` stays available for a
 
 GitHub turns scheduled workflows off on a public repository after 60 days without repository activity (`disabled_inactivity`). The `cron` key in the file does not fire while that state is set. Re-enable from the Actions tab or with `gh workflow enable bot-cron.yml`.
 
-If any of the four API secrets is empty, the job fails before `main.py` runs and does not commit. Per-article quality-gate failures still mark that keyword `failed` and the batch continues. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`, without `temperature`). Client-side SDK errors are `LLMAPIError`. If OpenAI failed for quota or billing, or both providers fail for quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`. A live batch that selects keywords and publishes none exits 2, including an all-quality-gate failure. Later commit steps are skipped, so a drained balance or a zero-MDX batch cannot land a commit. A main-branch run that writes MDX commits those files together with the database and can call the deploy hook. Before that commit, `python apps/bot/check_content_mdx.py` rejects MDX the quality gate would fail. When `apps/web/content` changed, the job also installs `apps/web` and runs `npm run check:mdx`, which renders every article with the site MDX compiler. Either check failing skips the commit, so a broken article cannot take down the Vercel build. A main-branch run that publishes at least one article and only otherwise records keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` when no article paths changed, and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
+If `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `FIRECRAWL_API_KEY` is empty, the job fails before `main.py` runs and does not commit. `PERPLEXITY_API_KEY` is optional. Research comes from a Google Drive packet when `GOOGLE_SERVICE_ACCOUNT_JSON` and `DRIVE_FOLDER_ID` are set. A keyword with no packet is skipped, not failed, when Perplexity is unset or returns quota/401/402/403. A batch of only those skips exits 0 and does not commit. See [drive-research.md](./drive-research.md). Per-article quality-gate failures still mark that keyword `failed` and the batch continues. Outline generation tries OpenAI first and, on failure, Anthropic (`ANTHROPIC_MODEL_WRITING` with the existing `ANTHROPIC_API_KEY`, without `temperature`). Client-side SDK errors are `LLMAPIError`. If OpenAI failed for quota or billing, or both providers fail for quota or billing, the bot restores locked keywords to `pending` or `needs_rewrite`. A live batch that selects keywords and publishes none exits 2, including an all-quality-gate failure, unless every keyword was skipped for missing Drive research or Perplexity quota. That research skip exits 0 and leaves the keywords pending. Later commit steps are skipped, so a drained balance or a zero-MDX batch cannot land a commit. A main-branch run that writes MDX commits those files together with the database and can call the deploy hook. Before that commit, `python apps/bot/check_content_mdx.py` rejects MDX the quality gate would fail. When `apps/web/content` changed, the job also installs `apps/web` and runs `npm run check:mdx`, which renders every article with the site MDX compiler. Either check failing skips the commit, so a broken article cannot take down the Vercel build. A main-branch run that publishes at least one article and only otherwise records keyword failures commits `data/keywords.db` as `chore(s01): record keyword status` when no article paths changed, and does not call the deploy hook. `VERCEL_DEPLOY_HOOK_URL` is optional: an empty hook does not fail the job. A push to `main` still deploys when the Vercel Git integration is connected. The hook URL is not passed into the bot step, so the hook is not called before the commit lands.
 
 ```yaml
 name: Bot - Daily Article Generation
@@ -213,6 +213,8 @@ env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
   FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+  GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+  DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
 
 jobs:
   generate:
@@ -226,7 +228,7 @@ jobs:
       - name: Require GitHub Actions API secrets
         run: |
           missing=0
-          for name in OPENAI_API_KEY ANTHROPIC_API_KEY PERPLEXITY_API_KEY FIRECRAWL_API_KEY; do
+          for name in OPENAI_API_KEY ANTHROPIC_API_KEY FIRECRAWL_API_KEY; do
             value="$(printenv "$name" || true)"
             if [ -z "$value" ]; then
               echo "::error title=Missing Actions secret::$name is empty. Cursor Runtime Secrets are not injected into GitHub Actions."
@@ -356,8 +358,10 @@ Set these in GitHub → repo → Settings → Secrets and variables → Actions.
 |--------|---------|------------------------|
 | `OPENAI_API_KEY` | bot-cron.yml | Yes |
 | `ANTHROPIC_API_KEY` | bot-cron.yml | Yes |
-| `PERPLEXITY_API_KEY` | bot-cron.yml | Yes |
-| `FIRECRAWL_API_KEY` | bot-cron.yml | Yes |
+| `PERPLEXITY_API_KEY` | bot-cron.yml | No. Used only when a selected keyword has no Drive packet. Quota or HTTP 401/402/403 skips that keyword. |
+| `FIRECRAWL_API_KEY` | bot-cron.yml | Yes. Called only on the Perplexity fallback path. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | bot-cron.yml | No for the job to start. Required to read Drive packets. Raw service-account JSON, or base64 of that JSON. |
+| `DRIVE_FOLDER_ID` | bot-cron.yml | No for the job to start. Required with the service account. The Drive folder id, shared with the service account as Viewer. |
 | `VERCEL_DEPLOY_HOOK_URL` | bot-cron.yml | No. Empty skips the hook step. Vercel Git integration still deploys pushes to `main`. |
 | `GSC_SERVICE_ACCOUNT_JSON` | gsc-feedback.yml | No. Phase 4 only. |
 
@@ -379,7 +383,8 @@ Run through this after M3 is complete:
 - [ ] Article page loads with CTA and JSON-LD in source
 
 ### Bot pipeline
-- [ ] All 4 API keys added as GitHub Actions secrets (Cursor Runtime Secrets are not visible to this workflow)
+- [ ] `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `FIRECRAWL_API_KEY` added as GitHub Actions secrets (Cursor Runtime Secrets are not visible to this workflow)
+- [ ] Drive research folder shared with the service account, and `GOOGLE_SERVICE_ACCOUNT_JSON` plus `DRIVE_FOLDER_ID` added as Actions secrets (`docs/drive-research.md`)
 - [ ] `VERCEL_DEPLOY_HOOK_URL` added as a GitHub Actions secret (optional; a push to `main` still deploys via the Vercel Git integration)
 - [ ] `bot-cron.yml` committed to `.github/workflows/`
 - [ ] Manual trigger (`workflow_dispatch`) tested once — confirms articles generate and commit

@@ -18,7 +18,7 @@ data/keywords.db (status=pending)
          │
 [1] Keyword Selector ── category-weighted batch, then volume/difficulty ratio
          │
-[2] Research Agent ── Firecrawl top-5 SERPs + Perplexity API
+[2] Research Agent ── Drive packet, else Firecrawl + Perplexity if available
          │
 [3] Outline Generator ── LLM: H2/H3 structure + FAQ seeds
          │
@@ -57,16 +57,27 @@ Batch limits:
 
 ## 4. Research Agent
 
-**File:** `apps/bot/research_agent.py`
+**Files:** `apps/bot/research_agent.py`, `apps/bot/drive_research.py`
 
-### 4.1 Firecrawl Scraping
+Research is Drive-first. `PERPLEXITY_API_KEY` is not required for a green cron. Packet format, folder setup, and Actions secrets are in [drive-research.md](./drive-research.md).
+
+1. When `GOOGLE_SERVICE_ACCOUNT_JSON` and `DRIVE_FOLDER_ID` are set, the bot lists that Drive folder and opens the file named with the keyword `slug` (or the keyword, slugified). A valid packet is the research bundle. Perplexity and Firecrawl are not called.
+2. The packet supplies the title, verified talking points, source links, tool notes, FAQ seeds, affiliate/referral CTA wording, and a disclosure sentence. The title is the H1 when it contains the keyword and is at least 10 characters. The disclosure is written under the H1. `cta_text` is stored on `monetisation/affiliate_map/{slug}.json` and becomes the button label when that partner program is enabled. A keyword-row `affiliate_partner` wins over the packet partner.
+3. If no packet matches and `PERPLEXITY_API_KEY` is set, the bot still scrapes with Firecrawl and calls the Perplexity Agent API.
+4. If no packet matches and Perplexity is unset, returns HTTP 401/402/403, or reports quota or billing failure, that keyword returns to `pending` or `needs_rewrite`. The article is skipped. One such failure blocks further Perplexity calls in the batch. A batch where every selected keyword is skipped this way exits 0. Other live batches that write no MDX still exit 2.
+5. A file that matches the slug but is invalid skips that keyword. It is not replaced with a Perplexity call. If Drive is configured and the folder cannot be read, the batch skips the same way.
+6. `python apps/bot/main.py --preview 5` prints the next slugs without locking them or calling any API. Drop a packet for each slug before the cron run.
+
+Branded cover and Open Graph images are not generated on `main`. They live on open pull request #16 (`cursor/article-covers-referrals-32d1`), which renders `/cover/{category}/{slug}` from the article title and keyword. This pipeline does not scrape third-party images. After that pull request merges, a new article gets a cover on the next site build.
+
+### 4.1 Firecrawl Scraping (Perplexity fallback only)
 
 For each keyword, Firecrawl scrapes top 5 organic results:
 - Extracts: headings, key claims, statistics, tool names
 - Strips: navigation, ads, footers
 - Output: list of `{url, title, headings[], body_summary}` dicts
 
-### 4.2 Perplexity API Call
+### 4.2 Perplexity API Call (fallback only)
 
 Sonar Chat Completions (`/chat/completions`, including `sonar-deep-research`) retired on 2026-09-27. Research uses the Agent API replacement for Sonar Deep Research.
 
@@ -92,7 +103,12 @@ research_bundle = {
     "tools_mentioned": [
         {"name": str, "pricing": str, "pros": list, "cons": list}
     ],
-    "faq_seeds": list[str]            # from scraped PAA boxes
+    "faq_seeds": list[str],           # from scraped PAA boxes or the Drive packet
+    "title": str,                     # Drive packet only; optional
+    "cta_text": str,                  # Drive packet only; optional
+    "disclosure": str,                # Drive packet only; optional
+    "affiliate_partner": str,         # Drive packet only; optional
+    "research_source": str            # "drive" or "perplexity"
 }
 ```
 
@@ -124,7 +140,7 @@ user_prompt = (
 
 Output validated against `outline_schema.json` before proceeding.
 
-If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. The Anthropic outline request does not send `temperature`; `anthropic` 1.x removed that argument, and `anthropic` and `openai` are pinned in `apps/bot/requirements.txt`. Client-side SDK errors (`TypeError`, `ValueError`) are raised as `LLMAPIError`. No extra secret is required. When the OpenAI failure is quota or billing, including when the Anthropic call then fails as an `LLMAPIError`, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2. A live batch that selects keywords and writes no MDX also exits 2, so the cron does not commit an MDX-less database change. Draft MDX counts as a successful write for that exit code. Dry runs and empty selections exit 0. Transient timeouts stay retryable. A quality-gate duplicate (`action=skip`) still sets `status=failed` and writes no MDX. Other FAIL and WARN results are written with `draft: true`.
+If the OpenAI outline call fails (including HTTP 429 `credit_balance_exhausted`), `generate_outline()` retries the same prompt on Anthropic using `ANTHROPIC_MODEL_WRITING` and the existing `ANTHROPIC_API_KEY`. The Anthropic outline request does not send `temperature`; `anthropic` 1.x removed that argument, and `anthropic` and `openai` are pinned in `apps/bot/requirements.txt`. Client-side SDK errors (`TypeError`, `ValueError`) are raised as `LLMAPIError`. No extra secret is required. When the OpenAI failure is quota or billing, including when the Anthropic call then fails as an `LLMAPIError`, the bot raises `ProviderOutageError`: locked keywords return to `pending` or `needs_rewrite`, later keywords in the batch are released, and the process exits 2. A live batch that selects keywords and writes no MDX also exits 2, so the cron does not commit an MDX-less database change. A batch whose every keyword is skipped because Drive has no usable packet and Perplexity is unset or quota-failed exits 0 instead, and those keywords stay `pending` or `needs_rewrite`. Draft MDX counts as a successful write for that exit code. Dry runs and empty selections exit 0. Transient timeouts stay retryable. A quality-gate duplicate (`action=skip`) still sets `status=failed` and writes no MDX. Other FAIL and WARN results are written with `draft: true`.
 
 ---
 
@@ -254,7 +270,7 @@ Triggered when `status == "needs_rewrite"` (set by SPEC-02 GSC feedback loop via
 
 | Stage | Model | Reason |
 |---|---|---|
-| Research | Perplexity Agent API preset `high` | Replaces retired `sonar-deep-research`; real-time web access |
+| Research | Drive packet, else Perplexity Agent API preset `high` | Operator-verified notes. Perplexity remains the fallback when a key is set |
 | Outline | `gpt-4o-mini` (`OPENAI_MODEL_OUTLINE`) | Fast, cheap, sufficient |
 | Outline fallback (OpenAI down or quota) | `claude-haiku-4-5-20251001` (`ANTHROPIC_MODEL_WRITING`) | Uses the Anthropic key already required by section writing |
 | Section writing | `claude-haiku-4-5-20251001` (`ANTHROPIC_MODEL_WRITING`) | Replaces retired `claude-3-5-haiku-20241022` |
@@ -267,7 +283,8 @@ Triggered when `status == "needs_rewrite"` (set by SPEC-02 GSC feedback loop via
 
 | Stage | Est. Cost |
 |---|---|
-| Perplexity research | ~$0.003 |
+| Drive research packet | $0 |
+| Perplexity research (fallback only) | ~$0.003 |
 | Outline (gpt-4o-mini) | ~$0.001 |
 | 7 sections (claude-haiku) | ~$0.018 |
 | Quality gate | ~$0.002 |
@@ -284,6 +301,8 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 PERPLEXITY_API_KEY=
 FIRECRAWL_API_KEY=
+GOOGLE_SERVICE_ACCOUNT_JSON=
+DRIVE_FOLDER_ID=
 VERCEL_DEPLOY_HOOK_URL=
 PERPLEXITY_PRESET=high
 OPENAI_MODEL_OUTLINE=gpt-4o-mini

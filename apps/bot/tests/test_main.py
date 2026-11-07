@@ -11,17 +11,22 @@ import pytest
 
 from category_weights import mdx_is_draft
 from db_setup import init_db
+from drive_research import MemoryDriveCatalog
 from generation_agent import (
     ProviderOutageError,
     ValidationError,
     generate_outline,
     write_sections,
 )
-from main import assemble_article, run
+from main import assemble_article, preview, run
 from mdx_writer import MDXWriterError
 from mdx_writer import write_article as real_write_article
 from quality_gate import CheckResult, QAResult
-from research_agent import ResearchAgentError, build_research_bundle
+from research_agent import (
+    ResearchAgentError,
+    ResearchUnavailable,
+    build_research_bundle,
+)
 
 _INSERT = (
     "INSERT INTO keywords "
@@ -504,6 +509,111 @@ class TestRunLive:
         assert status == ("failed",)
         assert list((tmp_path / "content").rglob("*.mdx")) == []
 
+    def test_missing_research_skips_without_failing_the_batch(
+        self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def unavailable(
+            keyword: str, intent: str, dry_run: bool = False, **_kwargs: object
+        ) -> dict:
+            raise ResearchUnavailable(
+                "no Drive research packet; PERPLEXITY_API_KEY is unset"
+            )
+
+        monkeypatch.setattr("main.build_research_bundle", unavailable)
+
+        code = run(
+            batch=2,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=tmp_path / "content",
+            affiliate_map_root=tmp_path / "affiliate",
+        )
+
+        conn = sqlite3.connect(seeded_db)
+        statuses = {
+            row[0] for row in conn.execute("SELECT status FROM keywords").fetchall()
+        }
+        conn.close()
+        assert code == 0
+        assert statuses == {"pending"}
+        assert list((tmp_path / "content").rglob("*.mdx")) == []
+
+    def test_drive_packet_publishes_without_perplexity(
+        self, seeded_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+        monkeypatch.delenv("DRIVE_FOLDER_ID", raising=False)
+        packet = json.dumps(
+            {
+                "keyword": "best ai writing tools",
+                "slug": "best-ai-writing-tools",
+                "title": "Best AI Writing Tools in 2026",
+                "talking_points": ["Jasper Pro is $69 per month."],
+                "sources": ["https://www.jasper.ai/pricing"],
+                "cta": "Compare Jasper plans",
+                "disclosure": (
+                    "This article contains affiliate links. "
+                    "We may earn a commission if you buy through them."
+                ),
+            }
+        )
+        catalog = MemoryDriveCatalog({"best-ai-writing-tools.json": packet})
+        monkeypatch.setattr("research_agent.resolve_drive_catalog", lambda: catalog)
+
+        async def fake_outline(
+            keyword: str, intent: str, research: dict, dry_run: bool = False
+        ) -> dict:
+            return await generate_outline(keyword, intent, research, dry_run=True)
+
+        async def fake_sections(
+            outline: dict,
+            research: dict,
+            intent: str,
+            dry_run: bool = False,
+            **kwargs: object,
+        ) -> list:
+            return await write_sections(
+                outline, research, intent, dry_run=True, **kwargs
+            )
+
+        monkeypatch.setattr("main.generate_outline", fake_outline)
+        monkeypatch.setattr("main.write_sections", fake_sections)
+
+        content_root = tmp_path / "content"
+        affiliate_root = tmp_path / "affiliate"
+        code = run(
+            batch=2,
+            dry_run=False,
+            db_path=seeded_db,
+            content_root=content_root,
+            affiliate_map_root=affiliate_root,
+        )
+
+        conn = sqlite3.connect(seeded_db)
+        written = conn.execute(
+            "SELECT status FROM keywords WHERE slug = ?",
+            ("best-ai-writing-tools",),
+        ).fetchone()
+        skipped = conn.execute(
+            "SELECT status FROM keywords WHERE slug = ?",
+            ("how-to-use-jasper-ai",),
+        ).fetchone()
+        conn.close()
+        mdx_files = list(content_root.rglob("*.mdx"))
+        affiliate_map = json.loads(
+            (affiliate_root / "best-ai-writing-tools.json").read_text(encoding="utf-8")
+        )
+        body = mdx_files[0].read_text(encoding="utf-8")
+        assert code == 0
+        assert written == ("draft",)
+        assert skipped == ("pending",)
+        assert len(mdx_files) == 1
+        assert "Best AI Writing Tools in 2026" in body
+        assert "We may earn a commission if you buy through them." in body
+        assert affiliate_map["cta_text"] == "Compare Jasper plans"
+        assert "affiliate links" in affiliate_map["disclosure"]
+
 
 def _assert_logs_omit_secrets(text: str) -> None:
     for name in (
@@ -653,6 +763,23 @@ class TestDiagnosticLogging:
         assert "failed_steps=write:2" in summary
         assert "exit_code=0" in summary
         _assert_logs_omit_secrets(caplog.text)
+
+
+def test_preview_lists_slugs_without_locking(
+    seeded_db: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = preview(batch=2, db_path=seeded_db)
+
+    conn = sqlite3.connect(seeded_db)
+    statuses = {
+        row[0] for row in conn.execute("SELECT status FROM keywords").fetchall()
+    }
+    conn.close()
+    captured = capsys.readouterr().out
+    assert code == 0
+    assert statuses == {"pending"}
+    assert "best-ai-writing-tools" in captured
+    assert "slug\tkeyword\tpartner" in captured
 
 
 def test_published_rows_match_content_files() -> None:
