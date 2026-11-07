@@ -6,8 +6,11 @@ from typing import Any
 
 import pytest
 
+from drive_research import DriveAccessError, MemoryDriveCatalog
 from research_agent import (
     ResearchAgentError,
+    ResearchSession,
+    ResearchUnavailable,
     build_research_bundle,
     query_perplexity,
     scrape_serps,
@@ -187,7 +190,11 @@ def test_query_perplexity_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> N
         query_perplexity("keyword", client=FakeClient([]))
 
 
-def test_build_research_bundle_matches_spec_shape() -> None:
+def test_build_research_bundle_matches_spec_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("DRIVE_FOLDER_ID", raising=False)
     client = FakeClient([firecrawl_response(), perplexity_response()])
 
     bundle = build_research_bundle(
@@ -327,6 +334,176 @@ def test_query_perplexity_maps_retired_sonar_model(
     query_perplexity("keyword", api_key="test-key", client=client)
 
     assert client.calls[0]["payload"]["preset"] == "high"
+
+
+def _drive_packet(filename: str = "best-ai-writing-tools.json") -> str:
+    return json.dumps(
+        {
+            "keyword": "best ai writing tools",
+            "slug": "best-ai-writing-tools",
+            "title": "Best AI Writing Tools in 2026",
+            "talking_points": ["Jasper Pro is $69 per month."],
+            "sources": [
+                {"title": "Jasper pricing", "url": "https://www.jasper.ai/pricing"}
+            ],
+            "tools_mentioned": [
+                {
+                    "name": "Jasper",
+                    "pricing": "$69/month",
+                    "pros": ["brand voice"],
+                    "cons": ["price"],
+                }
+            ],
+            "faq_seeds": ["How much does Jasper cost?"],
+            "affiliate": {
+                "partner": "jasper",
+                "cta": "Compare Jasper plans",
+                "disclosure": "This article contains affiliate links.",
+            },
+        }
+    )
+
+
+def test_drive_packet_skips_perplexity_and_firecrawl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+    client = FakeClient([])
+    catalog = MemoryDriveCatalog({"best-ai-writing-tools.json": _drive_packet()})
+
+    bundle = build_research_bundle(
+        "best ai writing tools",
+        "comparison",
+        slug="best-ai-writing-tools",
+        client=client,
+        drive=catalog,
+    )
+
+    assert client.calls == []
+    assert bundle["research_source"] == "drive"
+    assert bundle["facts"][0]["source"] == "https://www.jasper.ai/pricing"
+    assert bundle["cta_text"] == "Compare Jasper plans"
+    assert bundle["disclosure"] == "This article contains affiliate links."
+    assert bundle["tools_mentioned"][0]["name"] == "Jasper"
+
+
+def test_missing_packet_skips_when_perplexity_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("DRIVE_FOLDER_ID", raising=False)
+    client = FakeClient([firecrawl_response()])
+
+    with pytest.raises(ResearchUnavailable, match="PERPLEXITY_API_KEY is unset"):
+        build_research_bundle(
+            "best ai writing tools",
+            "comparison",
+            slug="best-ai-writing-tools",
+            firecrawl_api_key="firecrawl-key",
+            client=client,
+            drive=MemoryDriveCatalog({}),
+        )
+
+    assert client.calls == []
+
+
+def test_perplexity_quota_skips_and_blocks_the_rest_of_the_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GOOGLE_SERVICE_ACCOUNT_JSON", raising=False)
+    monkeypatch.delenv("DRIVE_FOLDER_ID", raising=False)
+    session = ResearchSession()
+    quota = ResearchAgentError(
+        'HTTP 401 Unauthorized: {"error":{"type":"insufficient_quota"}}'
+    )
+    first = FakeClient([firecrawl_response(), quota])
+
+    with pytest.raises(ResearchUnavailable, match="insufficient_quota"):
+        build_research_bundle(
+            "best ai writing tools",
+            "comparison",
+            slug="best-ai-writing-tools",
+            firecrawl_api_key="firecrawl-key",
+            perplexity_api_key="test-key",
+            client=first,
+            drive=MemoryDriveCatalog({}),
+            session=session,
+        )
+
+    assert session.perplexity_blocked is True
+    assert len(first.calls) == 2
+    second = FakeClient([firecrawl_response(), perplexity_response()])
+    with pytest.raises(ResearchUnavailable, match="insufficient_quota"):
+        build_research_bundle(
+            "jasper ai review",
+            "informational",
+            slug="jasper-ai-review-2026",
+            firecrawl_api_key="firecrawl-key",
+            perplexity_api_key="test-key",
+            client=second,
+            drive=MemoryDriveCatalog({}),
+            session=session,
+        )
+
+    assert second.calls == []
+
+
+def test_drive_outage_skips_without_calling_perplexity() -> None:
+    class BrokenCatalog:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def list_files(self) -> list[object]:
+            self.calls += 1
+            raise DriveAccessError("Drive API HTTP 403")
+
+        def download_text(self, file: object) -> str:
+            raise AssertionError(file)
+
+    session = ResearchSession()
+    catalog = BrokenCatalog()
+    client = FakeClient([perplexity_response()])
+    with pytest.raises(ResearchUnavailable, match="Drive API HTTP 403"):
+        build_research_bundle(
+            "best ai writing tools",
+            "comparison",
+            slug="best-ai-writing-tools",
+            perplexity_api_key="test-key",
+            client=client,
+            drive=catalog,
+            session=session,
+        )
+    with pytest.raises(ResearchUnavailable, match="could not be read"):
+        build_research_bundle(
+            "jasper ai review",
+            "informational",
+            slug="jasper-ai-review-2026",
+            perplexity_api_key="test-key",
+            client=client,
+            drive=catalog,
+            session=session,
+        )
+
+    assert catalog.calls == 1
+    assert client.calls == []
+
+
+def test_query_perplexity_does_not_retry_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("research_agent.time.sleep", lambda *_args, **_kwargs: None)
+    client = FakeClient(
+        [
+            ResearchAgentError("HTTP 401 insufficient_quota"),
+            perplexity_response(),
+        ]
+    )
+
+    with pytest.raises(ResearchAgentError, match="insufficient_quota"):
+        query_perplexity("keyword", api_key="test-key", client=client)
+
+    assert len(client.calls) == 1
 
 
 def test_query_perplexity_preset_env_overrides_model(
