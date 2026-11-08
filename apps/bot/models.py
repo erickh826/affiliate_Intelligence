@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from quality_gate import QAResult
 
@@ -67,6 +67,8 @@ class AffiliateMap(TypedDict):
     primary_partner: str | None
     cta_variant: str
     links: dict[str, str]
+    cta_text: NotRequired[str]
+    disclosure: NotRequired[str]
 
 
 class ArticleArtifact(TypedDict):

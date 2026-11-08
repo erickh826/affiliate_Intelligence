@@ -94,7 +94,7 @@ Two independent apps: `apps/bot` (Python 3.11+ CLI pipeline) and `apps/web` (Nex
 ### Python bot (`apps/bot/`)
 - Use the repo venv: prefix commands with `/workspace/.venv/bin/` (e.g. `.venv/bin/python`, `.venv/bin/ruff`, `.venv/bin/pytest`). System Python is externally managed (PEP 668); install only inside the venv.
 - The bot is a **CLI batch job, not a server**. Run it from inside `apps/bot/` (imports are flat; `pyproject.toml` sets `pythonpath = ["."]`). Example: `cd apps/bot && /workspace/.venv/bin/python main.py --batch 3 --dry-run`.
-- `--dry-run` runs the full pipeline **fully offline** (research + LLM are stubbed) and needs no API keys, but it produces filler text and does **not** write MDX files. Live generation (no `--dry-run`) writes files and requires `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `FIRECRAWL_API_KEY`.
+- `--dry-run` runs the full pipeline **fully offline** (research + LLM are stubbed) and needs no API keys, but it produces filler text and does **not** write MDX files. Live generation (no `--dry-run`) writes files and requires `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `FIRECRAWL_API_KEY`. Research is a Google Drive packet (`GOOGLE_SERVICE_ACCOUNT_JSON`, `DRIVE_FOLDER_ID`); `PERPLEXITY_API_KEY` is optional and is not called when a packet matches. See `docs/drive-research.md`.
 - Lint/test commands are in the root rule files (`ruff check apps/bot/`, `pytest apps/bot/tests/`) — run them via the venv.
 - Running the bot mutates `data/keywords.db` (keyword statuses) and, in live mode, writes into `apps/web/content/` + `monetisation/affiliate_map/`. These are tracked files; revert incidental test-run changes before committing.
 

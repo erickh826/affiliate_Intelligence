@@ -104,6 +104,18 @@ class TestSectionPrompt:
         p = _section_prompt("H2", ["Sub A", "Sub B"], [], "informational")
         assert "Sub A" in p
 
+    def test_section_prompt_includes_operator_cta_and_disclosure(self) -> None:
+        prompt = _section_prompt(
+            "H2",
+            ["H3"],
+            [],
+            "comparison",
+            cta_text="Compare Jasper plans",
+            disclosure="This article contains affiliate links.",
+        )
+        assert "Compare Jasper plans" in prompt
+        assert "This article contains affiliate links." in prompt
+
     def test_section_prompt_contains_affiliate_cta(self) -> None:
         p = _section_prompt("H2", ["H3"], [], "comparison", affiliate_partner="jasper")
         assert (

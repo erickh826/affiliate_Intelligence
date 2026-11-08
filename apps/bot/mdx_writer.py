@@ -130,6 +130,9 @@ def _build_mdx_body(article: dict[str, Any]) -> str:
         raise MDXWriterError("article sections must be a non-empty list")
 
     parts: list[str] = [f"# {prepare_written_mdx(_article_field(article, 'h1'))}"]
+    disclosure = " ".join(str(article.get("disclosure") or "").split())
+    if disclosure:
+        parts.append(prepare_written_mdx(disclosure))
     for section in sections:
         if not isinstance(section, dict):
             raise MDXWriterError("article section must be an object")
@@ -163,12 +166,19 @@ def _normalise_faqs(article: dict[str, Any]) -> list[FAQItem]:
 def _build_affiliate_map(article: dict[str, Any]) -> AffiliateMap:
     partner = str(article.get("affiliate_partner") or "")
     cta_variant = str(article.get("cta_variant") or "A")
-    return {
+    affiliate_map: AffiliateMap = {
         "slug": _article_field(article, "slug"),
         "primary_partner": partner or None,
         "cta_variant": cta_variant,
         "links": {},
     }
+    cta_text = str(article.get("cta_text") or "").strip()
+    disclosure = " ".join(str(article.get("disclosure") or "").split())
+    if cta_text:
+        affiliate_map["cta_text"] = cta_text
+    if disclosure:
+        affiliate_map["disclosure"] = disclosure
+    return affiliate_map
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

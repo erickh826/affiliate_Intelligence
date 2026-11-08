@@ -40,6 +40,7 @@ class KeywordManager:
         published_counts: Mapping[str, int] | None = None,
         weights_path: Path | None = None,
         content_root: Path | None = None,
+        lock: bool = True,
     ) -> list[dict[str, Any]]:
         if mode == "rewrite":
             statuses: tuple[str, ...] = ("needs_rewrite",)
@@ -85,7 +86,7 @@ class KeywordManager:
                 )
 
             slugs = [row["slug"] for row in chosen]
-            if slugs:
+            if lock and slugs:
                 slug_placeholders = ",".join("?" * len(slugs))
                 self._conn.execute(
                     f"UPDATE keywords SET status = 'generating' WHERE slug IN ({slug_placeholders})",
