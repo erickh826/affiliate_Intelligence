@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
@@ -14,7 +15,14 @@ import {
 } from '../../../lib/mdx';
 import { rehypeHeadingIds } from '../../../lib/rehype-heading-ids';
 import { buildTableOfContents } from '../../../lib/toc';
+import { articleDisplayImage } from '../../../lib/article-image';
+import {
+  activeProgramsForArticle,
+  comparisonBannerText,
+  disclosureKind,
+} from '../../../lib/affiliates';
 import { formatArticleDate } from '../../../lib/blog-listing';
+import { COVER_HEIGHT, COVER_WIDTH } from '../../../lib/cover';
 import { getSiteName, getSiteUrl } from '../../../lib/site';
 import {
   resolveCTAConfig,
@@ -65,6 +73,7 @@ export async function generateMetadata({
   const { title, description } = article.frontmatter;
   const canonical = `${SITE_URL}/${category}/${slug}/`;
   const draft = isDraft(article.frontmatter);
+  const image = articleDisplayImage(article.frontmatter);
 
   return {
     title: `${title} | ${siteName}`,
@@ -76,6 +85,20 @@ export async function generateMetadata({
       description,
       type: 'article',
       url: canonical,
+      images: [
+        {
+          url: image.src,
+          width: COVER_WIDTH,
+          height: COVER_HEIGHT,
+          alt: image.alt,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image.src],
     },
   };
 }
@@ -99,6 +122,13 @@ export default async function ArticlePage({
     ctaConfig,
     article.content,
   );
+  const monetized = disclosureKind(
+    activeProgramsForArticle(
+      article.frontmatter.affiliate_partner,
+      article.content,
+    ),
+  );
+  const cover = articleDisplayImage(article.frontmatter);
   const { contentParts } = article;
   const toc = buildTableOfContents(article.content);
   const partHeadingIds = headingIdsForParts(contentParts);
@@ -162,7 +192,23 @@ export default async function ArticlePage({
             </div>
           </header>
 
-          {showAffiliateDisclosure ? <AffiliateDisclosureNote /> : null}
+          <figure className="mb-8 overflow-hidden rounded-xl border border-border bg-[#0a0a0a]">
+            <div className="relative aspect-[1200/630]">
+              <Image
+                src={cover.src}
+                alt={cover.alt}
+                fill
+                priority
+                sizes="(min-width: 1024px) 720px, 100vw"
+                className="object-cover"
+                unoptimized={cover.src.startsWith('/cover/')}
+              />
+            </div>
+          </figure>
+
+          {showAffiliateDisclosure && monetized ? (
+            <AffiliateDisclosureNote kind={monetized} />
+          ) : null}
 
           <div className="mb-8 lg:hidden">
             <TableOfContents nodes={toc} />
@@ -236,8 +282,7 @@ export default async function ArticlePage({
 
           {article.frontmatter.intent === 'comparison' && (
             <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-border py-3 px-4 text-xs text-secondary text-center z-50">
-              This page contains affiliate links. We may earn a commission at no
-              cost to you.{' '}
+              {comparisonBannerText(monetized)}{' '}
               <Link
                 href="/affiliate-disclosure"
                 className="text-accent hover:underline"

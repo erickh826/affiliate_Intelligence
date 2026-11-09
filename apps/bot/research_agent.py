@@ -19,6 +19,7 @@ from drive_research import (
     load_matching_packet,
     resolve_drive_catalog,
 )
+from editorial_facts import merge_editorial_facts
 
 
 class ResearchAgentError(RuntimeError):
@@ -263,7 +264,7 @@ def build_research_bundle(
     session: ResearchSession | None = None,
 ) -> dict[str, Any]:
     if dry_run:
-        return {
+        bundle = {
             "keyword": keyword,
             "intent": intent,
             "competitors_scraped": [],
@@ -287,6 +288,8 @@ def build_research_bundle(
                 f"How much does {keyword} cost?",
             ],
         }
+        bundle["facts"] = merge_editorial_facts(keyword, bundle["facts"])
+        return bundle
     active = session or ResearchSession()
     packet = _drive_packet(
         active,
@@ -295,7 +298,9 @@ def build_research_bundle(
         slug=slug or "",
     )
     if packet is not None:
-        return bundle_from_packet(packet, keyword=keyword, intent=intent)
+        bundle = bundle_from_packet(packet, keyword=keyword, intent=intent)
+        bundle["facts"] = merge_editorial_facts(keyword, bundle["facts"])
+        return bundle
     perplexity_key = _resolved_perplexity_key(perplexity_api_key)
     label = slug or keyword
     if active.perplexity_blocked or not perplexity_key:
@@ -319,7 +324,7 @@ def build_research_bundle(
         "keyword": keyword,
         "intent": intent,
         "competitors_scraped": competitors,
-        "facts": enrichment["facts"],
+        "facts": merge_editorial_facts(keyword, enrichment["facts"]),
         "tools_mentioned": enrichment["tools_mentioned"],
         "faq_seeds": enrichment["faq_seeds"],
         "research_source": "perplexity",

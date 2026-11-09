@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getSiteName } from '../../lib/site';
 
-const updatedAt = '2026-10-12';
+const updatedAt = '2026-11-03';
 
 export const metadata: Metadata = {
   title: `Affiliate Disclosure | ${getSiteName()}`,
@@ -30,7 +30,9 @@ export default function AffiliateDisclosurePage() {
           <p>
             {siteName} is reader-supported. Some links on articles are affiliate
             links. If you sign up or buy through one of those links, we may earn
-            a commission at no extra cost to you.
+            a commission at no extra cost to you. Some links are referral links.
+            If you sign up through a referral link, the site may receive credits
+            or rewards.
           </p>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold font-display text-text">
@@ -63,8 +65,10 @@ export default function AffiliateDisclosurePage() {
               Current categories include AI writing tools (Jasper, Writesonic,
               Copy.ai), SEO tools (Surfer SEO, Semrush, Ahrefs), AI voice and
               video (ElevenLabs, Descript), and productivity and automation
-              (Notion, Zapier). A program appears in an article only when that
-              program is enabled.
+              (Notion, Zapier). Lovable and Manus are referral programs in AI
+              code: the article says when a signup link can include bonus
+              credits, and it says the site may receive credits or rewards. A
+              program appears in an article only when that program is enabled.
             </p>
           </div>
           <div className="space-y-2">
