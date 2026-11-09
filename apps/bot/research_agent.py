@@ -7,13 +7,27 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from drive_research import (
+    DriveAccessError,
+    DriveCatalog,
+    DriveFile,
+    ResearchPacketError,
+    bundle_from_packet,
+    load_matching_packet,
+    resolve_drive_catalog,
+)
 from editorial_facts import merge_editorial_facts
 
 
 class ResearchAgentError(RuntimeError):
     pass
+
+
+class ResearchUnavailable(ResearchAgentError):
+    """No verified Drive packet and Perplexity cannot run. Keyword stays retryable."""
 
 
 _AGENT_URL = "https://api.perplexity.ai/v1/agent"
@@ -211,7 +225,8 @@ def query_perplexity(
             headers,
             payload,
             timeout,
-        )
+        ),
+        give_up=_perplexity_unavailable,
     )
     final = _await_agent_response(
         http,
@@ -227,14 +242,26 @@ def query_perplexity(
     return _parse_perplexity_content(content)
 
 
+@dataclass
+class ResearchSession:
+    perplexity_blocked: bool = False
+    drive_failure: str | None = None
+    _drive: _CachedDrive | None = field(default=None, repr=False)
+    _drive_key: object | None = field(default=None, repr=False)
+    _drive_checked: bool = False
+
+
 def build_research_bundle(
     keyword: str,
     intent: str,
     *,
     dry_run: bool = False,
+    slug: str | None = None,
     firecrawl_api_key: str | None = None,
     perplexity_api_key: str | None = None,
     client: HTTPClient | None = None,
+    drive: DriveCatalog | None = None,
+    session: ResearchSession | None = None,
 ) -> dict[str, Any]:
     if dry_run:
         bundle = {
@@ -263,8 +290,36 @@ def build_research_bundle(
         }
         bundle["facts"] = merge_editorial_facts(keyword, bundle["facts"])
         return bundle
+    active = session or ResearchSession()
+    packet = _drive_packet(
+        active,
+        drive,
+        keyword=keyword,
+        slug=slug or "",
+    )
+    if packet is not None:
+        bundle = bundle_from_packet(packet, keyword=keyword, intent=intent)
+        bundle["facts"] = merge_editorial_facts(keyword, bundle["facts"])
+        return bundle
+    perplexity_key = _resolved_perplexity_key(perplexity_api_key)
+    label = slug or keyword
+    if active.perplexity_blocked or not perplexity_key:
+        reason = (
+            "Perplexity unavailable after insufficient_quota"
+            if active.perplexity_blocked
+            else "PERPLEXITY_API_KEY is unset"
+        )
+        raise ResearchUnavailable(f"no Drive research packet for {label}; {reason}")
     competitors = scrape_serps(keyword, api_key=firecrawl_api_key, client=client)
-    enrichment = query_perplexity(keyword, api_key=perplexity_api_key, client=client)
+    try:
+        enrichment = query_perplexity(keyword, api_key=perplexity_key, client=client)
+    except ResearchAgentError as exc:
+        if _perplexity_unavailable(exc):
+            active.perplexity_blocked = True
+            raise ResearchUnavailable(
+                f"no Drive research packet for {label}; {exc}"
+            ) from exc
+        raise
     return {
         "keyword": keyword,
         "intent": intent,
@@ -272,7 +327,105 @@ def build_research_bundle(
         "facts": merge_editorial_facts(keyword, enrichment["facts"]),
         "tools_mentioned": enrichment["tools_mentioned"],
         "faq_seeds": enrichment["faq_seeds"],
+        "research_source": "perplexity",
     }
+
+
+class _CachedDrive:
+    def __init__(self, inner: DriveCatalog) -> None:
+        self._inner = inner
+        self.files: list[DriveFile] | None = None
+        self.text: dict[str, str] = {}
+
+    def list_files(self) -> list[DriveFile]:
+        if self.files is None:
+            self.files = list(self._inner.list_files())
+        return self.files
+
+    def download_text(self, file: DriveFile) -> str:
+        key = file.id or file.name
+        if key not in self.text:
+            self.text[key] = self._inner.download_text(file)
+        return self.text[key]
+
+
+def _drive_packet(
+    session: ResearchSession,
+    explicit: DriveCatalog | None,
+    *,
+    keyword: str,
+    slug: str,
+) -> Any:
+    catalog = _drive_catalog(session, explicit)
+    if catalog is None:
+        return None
+    try:
+        return load_matching_packet(catalog, slug=slug, keyword=keyword)
+    except DriveAccessError as exc:
+        message = f"Drive research folder could not be read: {exc}"
+        session.drive_failure = message
+        raise ResearchUnavailable(message) from exc
+    except ResearchPacketError as exc:
+        raise ResearchUnavailable(str(exc)) from exc
+
+
+def _drive_catalog(
+    session: ResearchSession,
+    explicit: DriveCatalog | None,
+) -> DriveCatalog | None:
+    if session.drive_failure:
+        raise ResearchUnavailable(session.drive_failure)
+    if explicit is not None:
+        key: object = explicit
+        resolved: DriveCatalog | None = explicit
+    elif session._drive_checked and session._drive_key == "env":
+        if session.drive_failure:
+            raise ResearchUnavailable(session.drive_failure)
+        return session._drive
+    else:
+        key = "env"
+        session._drive_checked = True
+        try:
+            resolved = resolve_drive_catalog()
+        except DriveAccessError as exc:
+            session.drive_failure = (
+                "Drive research is configured but unreadable: "
+                "could not load the Google service account"
+            )
+            session._drive_key = key
+            raise ResearchUnavailable(session.drive_failure) from exc
+    if resolved is None:
+        session._drive = None
+        session._drive_key = key
+        return None
+    if session._drive is None or session._drive_key is not key:
+        session._drive = _CachedDrive(resolved)
+        session._drive_key = key
+    return session._drive
+
+
+def _resolved_perplexity_key(explicit: str | None) -> str:
+    if explicit is not None:
+        return explicit.strip()
+    return os.environ.get("PERPLEXITY_API_KEY", "").strip()
+
+
+def _perplexity_unavailable(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "insufficient_quota",
+        "insufficient quota",
+        "credit_balance_exhausted",
+        "credit balance",
+        "no credits remaining",
+        "purchase credits",
+        "quota",
+        "billing",
+        "http 401",
+        "http 402",
+        "http 403",
+    )
+    return any(marker in text for marker in markers)
 
 
 def _retry(
@@ -280,6 +433,7 @@ def _retry(
     *,
     attempts: int = 3,
     base_delay: float = 0.25,
+    give_up: Callable[[Exception], bool] | None = None,
 ) -> Mapping[str, Any]:
     last_error: Exception | None = None
     for attempt in range(attempts):
@@ -287,6 +441,8 @@ def _retry(
             return operation()
         except (ResearchAgentError, OSError, TimeoutError, ValueError) as exc:
             last_error = exc
+            if give_up is not None and give_up(exc):
+                break
             if attempt == attempts - 1:
                 break
             time.sleep(base_delay * (2**attempt))

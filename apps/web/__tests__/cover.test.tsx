@@ -62,7 +62,7 @@ describe('cover model', () => {
 describe('article covers', () => {
   it('gives every article file a cover whose alt includes its keyword', async () => {
     const articles = await getAllArticles({ includeDrafts: true });
-    expect(articles.length).toBe(107);
+    expect(articles.length).toBe(115);
     for (const article of articles) {
       const image = articleDisplayImage(article.frontmatter);
       expect(image.src).toBe(

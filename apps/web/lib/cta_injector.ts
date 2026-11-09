@@ -14,6 +14,8 @@ export interface AffiliateMap {
   primary_partner: string;
   cta_variant: 'A' | 'B';
   links: Record<string, string>;
+  cta_text?: string;
+  disclosure?: string;
 }
 
 export interface CTAConfig {
@@ -61,10 +63,15 @@ export function resolveCTAConfig(
   slug: string,
   partnerId?: string | null,
   programs: AffiliateProgram[] = loadAffiliateConfig().programs,
+  affiliateMap?: AffiliateMap | null,
 ): CTAConfig | null {
-  const map = getAffiliateMap(slug);
+  const map = affiliateMap === undefined ? getAffiliateMap(slug) : affiliateMap;
   const id = (partnerId ?? '').trim() || map?.primary_partner || '';
-  return ctaFromProgram(getProgram(id, programs));
+  const config = ctaFromProgram(getProgram(id, programs));
+  if (!config) return null;
+  const ctaText = map?.cta_text?.trim();
+  if (!ctaText) return config;
+  return { ...config, text: ctaText };
 }
 
 export function shouldShowAffiliateDisclosure(

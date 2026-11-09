@@ -76,6 +76,18 @@ describe('central affiliate config', () => {
     expect(ctaFromProgram(manus)?.linkType).toBe('referral');
   });
 
+  it('uses operator CTA wording from the article map', () => {
+    const config = resolveCTAConfig('unused-slug', 'jasper', [enabledJasper], {
+      slug: 'unused-slug',
+      primary_partner: 'jasper',
+      cta_variant: 'A',
+      links: {},
+      cta_text: 'Sign up with this link to get bonus credits',
+    });
+    expect(config?.text).toBe('Sign up with this link to get bonus credits');
+    expect(config?.href).toBe('https://jasper.ai/?via=real');
+  });
+
   it('renders the CTA from the program record, not the article map', () => {
     const config = ctaFromProgram(enabledJasper);
     expect(config).toEqual({

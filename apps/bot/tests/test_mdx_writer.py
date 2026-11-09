@@ -252,6 +252,27 @@ def test_faq_json_output(tmp_path: Path, empty_db: Path) -> None:
     }
 
 
+def test_drive_disclosure_and_cta_are_written(tmp_path: Path, empty_db: Path) -> None:
+    article = _article(
+        disclosure="This article contains affiliate links. We may earn a commission.",
+        cta_text="Compare Jasper plans",
+    )
+    result = write_article(
+        _artifact(article, _qa_result()),
+        dry_run=False,
+        db_path=empty_db,
+        content_root=tmp_path / "content",
+        affiliate_map_root=tmp_path / "affiliate_map",
+    )
+
+    mdx = result.mdx_path.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    payload = json.loads(result.affiliate_map_path.read_text(encoding="utf-8"))  # type: ignore[union-attr]
+    assert "We may earn a commission." in mdx
+    assert mdx.index("We may earn a commission.") < mdx.index("## How AI Writing")
+    assert payload["cta_text"] == "Compare Jasper plans"
+    assert payload["disclosure"].startswith("This article contains affiliate links.")
+
+
 def test_affiliate_map_stub_output(tmp_path: Path, empty_db: Path) -> None:
     qa_result = _qa_result()
     result = write_article(

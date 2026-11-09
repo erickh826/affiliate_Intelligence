@@ -110,7 +110,13 @@ def _summarise_research(research_bundle: dict[str, Any]) -> str:
     tools_str = ", ".join(
         t["name"] for t in tools if isinstance(t, dict) and "name" in t
     )
-    return f"Key facts: {facts_str}. Tools: {tools_str}."
+    sources: list[str] = []
+    for competitor in research_bundle.get("competitors_scraped", [])[:5]:
+        if isinstance(competitor, dict) and competitor.get("url"):
+            sources.append(str(competitor["url"]))
+    source_str = ", ".join(sources)
+    extra = f" Sources: {source_str}." if source_str else ""
+    return f"Key facts: {facts_str}. Tools: {tools_str}.{extra}"
 
 
 def _outline_prompt(keyword: str, intent: str, research_summary: str) -> str:
@@ -156,6 +162,9 @@ def _section_prompt(
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
     keyword: str | None = None,
+    *,
+    cta_text: str | None = None,
+    disclosure: str | None = None,
 ) -> str:
     eeat = _EEAT.get(intent, "")
     style = f"Tone/Style: {style_guide}\n" if style_guide else ""
@@ -191,6 +200,17 @@ def _section_prompt(
             + "\n"
         )
 
+    offer = ""
+    if cta_text:
+        offer += (
+            "\nAFFILIATE/REFERRAL CTA WORDING: Use this wording for the offer: "
+            f"{cta_text}."
+        )
+    if disclosure:
+        offer += (
+            "\nDISCLOSURE: The page states this sentence separately. "
+            f"Do not contradict it: {disclosure}"
+        )
     return (
         f"{style}"
         f"Section: '{h2}'\n"
@@ -202,6 +222,7 @@ def _section_prompt(
         f"{eeat}\n"
         f"{cta}\n"
         f"{internal_links}"
+        f"{offer}"
     ).strip()
 
 
@@ -411,6 +432,9 @@ async def _call_anthropic_section(
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
     keyword: str | None = None,
+    *,
+    cta_text: str | None = None,
+    disclosure: str | None = None,
 ) -> str:
     from anthropic import AnthropicError, AsyncAnthropic
 
@@ -431,6 +455,8 @@ async def _call_anthropic_section(
                         style_guide,
                         affiliate_partner,
                         keyword,
+                        cta_text=cta_text,
+                        disclosure=disclosure,
                     ),
                 }
             ],
@@ -448,6 +474,9 @@ async def _call_openai_section(
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
     keyword: str | None = None,
+    *,
+    cta_text: str | None = None,
+    disclosure: str | None = None,
 ) -> str:
     from openai import AsyncOpenAI, OpenAIError
 
@@ -467,6 +496,8 @@ async def _call_openai_section(
                         style_guide,
                         affiliate_partner,
                         keyword,
+                        cta_text=cta_text,
+                        disclosure=disclosure,
                     ),
                 },
             ],
@@ -487,6 +518,9 @@ async def _write_one_section(
     style_guide: str | None = None,
     affiliate_partner: str | None = None,
     keyword: str | None = None,
+    *,
+    cta_text: str | None = None,
+    disclosure: str | None = None,
 ) -> dict[str, Any]:
     async with sem:
         if dry_run:
@@ -496,12 +530,28 @@ async def _write_one_section(
             return section
         try:
             content = await _call_anthropic_section(
-                h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
+                h2,
+                h3s,
+                facts,
+                intent,
+                style_guide,
+                affiliate_partner,
+                keyword,
+                cta_text=cta_text,
+                disclosure=disclosure,
             )
         except LLMAPIError as anthropic_exc:
             try:
                 content = await _call_openai_section(
-                    h2, h3s, facts, intent, style_guide, affiliate_partner, keyword
+                    h2,
+                    h3s,
+                    facts,
+                    intent,
+                    style_guide,
+                    affiliate_partner,
+                    keyword,
+                    cta_text=cta_text,
+                    disclosure=disclosure,
                 )
             except LLMAPIError as openai_exc:
                 if _is_provider_outage(anthropic_exc) or _is_provider_outage(
@@ -587,6 +637,9 @@ async def generate_outline(
         return outline
 
     summary = _summarise_research(research_bundle)
+    preferred = str(research_bundle.get("title") or "").strip()
+    if preferred:
+        summary = f"Preferred H1: {preferred}. {summary}"
     last_error: ValidationError | None = None
     for _attempt in range(3):
         outline = _sanitize_outline_mdx(
@@ -617,6 +670,8 @@ async def write_sections(
     base_facts = [fact for fact in all_facts if not is_editorial_fact(fact)]
     editorial = [fact for fact in all_facts if is_editorial_fact(fact)]
     keyword = str(research_bundle.get("keyword") or "").strip()
+    cta_text = str(research_bundle.get("cta_text") or "").strip()
+    disclosure = str(research_bundle.get("disclosure") or "").strip()
     tasks = [
         _write_one_section(
             s["h2"],
@@ -628,6 +683,8 @@ async def write_sections(
             style_guide,
             affiliate_partner,
             keyword if index == 0 and keyword else None,
+            cta_text=cta_text if index == 0 else None,
+            disclosure=disclosure if index == 0 else None,
         )
         for index, s in enumerate(outline["sections"])
     ]
