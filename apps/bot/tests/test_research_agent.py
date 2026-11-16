@@ -267,6 +267,13 @@ class TestBuildResearchBundleDryRun:
         bundle = build_research_bundle("jasper ai", "informational", dry_run=True)
         assert any("jasper ai" in f["claim"].lower() for f in bundle["facts"])
 
+    def test_manus_review_includes_subscription_pause(self) -> None:
+        bundle = build_research_bundle("manus ai review", "informational", dry_run=True)
+        assert bundle["facts"][0]["claim"] == (
+            "Manus paused new subscriptions in some regions since August 2026."
+        )
+        assert bundle["facts"][0]["source"] == "editorial"
+
     def test_facts_contain_price_anchors(self) -> None:
         bundle = build_research_bundle("best ai tools", "comparison", dry_run=True)
         full = " ".join(f["claim"] for f in bundle["facts"])

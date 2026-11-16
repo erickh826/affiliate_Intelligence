@@ -123,7 +123,9 @@ For each program:
 
 ### 5.1 Central program config
 
-Referral URLs live in one file, `monetisation/affiliates.json`. Each program has `id`, `name`, `category`, `url`, `promo_code`, `anchor`, and `enabled`. Placeholder URLs use `YOUR_REF` and `enabled: false` until a real link is approved.
+Referral URLs live in one file, `monetisation/affiliates.json`. Each program has `id`, `name`, `category`, `url`, `promo_code`, `anchor`, and `enabled`. Optional `type` is `affiliate` (the default when the field is omitted) or `referral`. Placeholder affiliate URLs use `YOUR_REF` and `enabled: false` until a real link is approved. A referral entry uses the personal invite URL, `type: "referral"`, and `enabled: true`.
+
+Referral CTAs use anchor copy in the form "Sign up with this link to get bonus credits". Everywhere that link renders, the CTA also shows: "We may receive credits or rewards if you sign up through this link." The article disclosure at the top uses the same distinction. Affiliate copy is unchanged.
 
 | Category slug | Label | Programs |
 |---|---|---|
@@ -131,7 +133,7 @@ Referral URLs live in one file, `monetisation/affiliates.json`. Each program has
 | `seo` | SEO | Surfer SEO, Semrush, Ahrefs |
 | `ai-video` | AI Voice & Video | ElevenLabs, Descript |
 | `ai-productivity` | Productivity & Automation | Notion, Zapier |
-| `ai-code` | AI Code | none yet |
+| `ai-code` | AI Code | Lovable, Manus (referral) |
 
 Articles store `affiliate_partner: "{id}"`. CTAs render from this file with `rel="sponsored"` only when that program is `enabled`. A disabled or placeholder program publishes the article with no affiliate link. Drafts are reserved for QA WARN and FAIL.
 
@@ -203,6 +205,7 @@ month,adsense_usd,jasper_usd,writesonic_usd,surfer_usd,elevenlabs_usd,total_usd
 | Requirement | Implementation |
 |---|---|
 | FTC affiliate disclosure | `/affiliate-disclosure`, footer link, and a one-line notice at the top of any article that renders an affiliate CTA |
+| Referral disclosure | Same page and notice. Referral links say the site may receive credits or rewards, on the CTA and in the top notice |
 | GDPR cookie consent | CookieYes banner on first visit |
 | Affiliate link transparency | `rel="sponsored"` on all affiliate `<a>` tags |
 | AdSense policies | No click fraud, no incentivised clicks |

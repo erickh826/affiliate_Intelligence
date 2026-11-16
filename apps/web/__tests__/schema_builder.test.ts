@@ -64,6 +64,16 @@ describe('buildArticleSchema', () => {
       `${SITE_URL}/ai-writing/best-ai-writing-tools-2026/`,
     );
   });
+
+  it('points the article image at the generated cover', () => {
+    const schema = buildArticleSchema(frontmatter, SITE_URL) as Record<
+      string,
+      unknown
+    >;
+    expect(schema.image).toBe(
+      `${SITE_URL}/cover/ai-writing/best-ai-writing-tools-2026`,
+    );
+  });
 });
 
 describe('buildBreadcrumbSchema', () => {

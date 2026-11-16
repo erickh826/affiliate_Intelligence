@@ -21,8 +21,18 @@ def test_placeholders_are_disabled() -> None:
         "notion",
         "zapier",
     } <= ids
-    assert all(not program.enabled for program in programs)
-    assert all("YOUR_REF" in program.url for program in programs)
+    affiliates = [program for program in programs if program.type == "affiliate"]
+    referrals = {
+        program.id: program for program in programs if program.type == "referral"
+    }
+    assert all(not program.enabled for program in affiliates)
+    assert all("YOUR_REF" in program.url for program in affiliates)
+    assert referrals["lovable"].enabled is True
+    assert referrals["lovable"].url == "https://lovable.dev/invite/U7087MO"
+    assert referrals["lovable"].category == "ai-code"
+    assert referrals["manus"].enabled is True
+    assert referrals["manus"].url == "https://manus.im/invitation/4QB3RCLPTD1A"
+    assert "bonus credits" in referrals["manus"].anchor
 
 
 def test_enabled_program_unlocks_its_category(tmp_path: Path) -> None:
@@ -47,4 +57,5 @@ def test_enabled_program_unlocks_its_category(tmp_path: Path) -> None:
     )
     assert category_has_enabled_program("seo", path) is True
     assert category_has_enabled_program("ai-writing", path) is False
-    assert category_has_enabled_program("ai-code") is False
+    assert category_has_enabled_program("ai-writing") is False
+    assert category_has_enabled_program("ai-code") is True

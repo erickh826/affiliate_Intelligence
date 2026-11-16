@@ -9,6 +9,7 @@ from typing import Any
 
 import jsonschema
 
+from editorial_facts import is_editorial_fact
 from mdx_safety import sanitize_mdx
 
 _LOG = logging.getLogger(__name__)
@@ -185,6 +186,20 @@ def _section_prompt(
             f"The first 100 words must contain the exact phrase '{keyword}'.\n"
         )
 
+    regular_facts = [fact for fact in facts if not is_editorial_fact(fact)]
+    required = [
+        str(fact.get("claim")).strip()
+        for fact in facts
+        if is_editorial_fact(fact) and str(fact.get("claim") or "").strip()
+    ]
+    required_rule = ""
+    if required:
+        required_rule = (
+            "REQUIRED FACT: Include this once, in plain language: "
+            + " ".join(required)
+            + "\n"
+        )
+
     offer = ""
     if cta_text:
         offer += (
@@ -200,9 +215,10 @@ def _section_prompt(
         f"{style}"
         f"Section: '{h2}'\n"
         f"Sub-sections: {h3s}\n"
-        f"Facts to include: {facts[:3]}\n"
+        f"Facts to include: {regular_facts[:3]}\n"
         f"Target: 300–400 words. Include ≥1 pricing data point.\n"
         f"{keyword_rule}"
+        f"{required_rule}"
         f"{eeat}\n"
         f"{cta}\n"
         f"{internal_links}"
@@ -649,7 +665,10 @@ async def write_sections(
     affiliate_partner: str | None = None,
 ) -> list[dict[str, Any]]:
     sem = asyncio.Semaphore(_MAX_CONCURRENCY)
-    facts = research_bundle.get("facts", [])
+    raw_facts = research_bundle.get("facts", [])
+    all_facts = raw_facts if isinstance(raw_facts, list) else []
+    base_facts = [fact for fact in all_facts if not is_editorial_fact(fact)]
+    editorial = [fact for fact in all_facts if is_editorial_fact(fact)]
     keyword = str(research_bundle.get("keyword") or "").strip()
     cta_text = str(research_bundle.get("cta_text") or "").strip()
     disclosure = str(research_bundle.get("disclosure") or "").strip()
@@ -657,7 +676,7 @@ async def write_sections(
         _write_one_section(
             s["h2"],
             s.get("h3s", []),
-            facts,
+            editorial + base_facts if index == 0 else base_facts,
             intent,
             dry_run,
             sem,

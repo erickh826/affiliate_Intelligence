@@ -11,6 +11,7 @@ export default function ArticleGridCard({ article }: ArticleGridCardProps) {
     <article className="content-auto flex flex-col gap-3">
       <ArticleMedia
         image={article.image}
+        alt={article.imageAlt}
         sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
         className="aspect-video rounded-lg"
       />

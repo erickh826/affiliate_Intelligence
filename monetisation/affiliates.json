@@ -89,6 +89,26 @@
       "promo_code": "",
       "anchor": "Start Automating with Zapier →",
       "enabled": false
+    },
+    {
+      "id": "lovable",
+      "name": "Lovable",
+      "category": "ai-code",
+      "type": "referral",
+      "url": "https://lovable.dev/invite/U7087MO",
+      "promo_code": "",
+      "anchor": "Sign up with this link to get bonus credits",
+      "enabled": true
+    },
+    {
+      "id": "manus",
+      "name": "Manus",
+      "category": "ai-code",
+      "type": "referral",
+      "url": "https://manus.im/invitation/4QB3RCLPTD1A",
+      "promo_code": "",
+      "anchor": "Sign up with this link to get bonus credits",
+      "enabled": true
     }
   ]
 }
